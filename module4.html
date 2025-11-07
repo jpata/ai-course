@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Module 4: Images as Data - The AI-Enabled Researcher</title>
+    
+    <!-- Google Fonts Import -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+
+    <!-- All CSS is in this <style> tag. Includes original styles + new subpage styles -->
+    <style>
+        :root {
+            --color-primary-dark: #1a1a2e;
+            --color-primary-light: #16213e;
+            --color-secondary: #0f3460;
+            --color-accent: #53d3b0;
+            --color-accent-dark: #46b394;
+            --color-text-light: #e0e0e0;
+            --color-text-dark: #000000;
+            --color-card-bg: #ffffff;
+            --font-family: 'Poppins', sans-serif;
+        }
+
+        /* --- Global Reset --- */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: var(--font-family);
+            background-color: #f4f7fc;
+            color: var(--color-text-dark);
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        .container {
+            width: 90%;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px 0;
+        }
+
+        h1, h2, h3, h4 {
+            font-weight: 600;
+        }
+
+        h1 {
+            font-size: 2.8rem;
+            margin-bottom: 0.5rem;
+        }
+
+        h2 {
+            font-size: 2.2rem;
+            margin-bottom: 2rem;
+            text-align: center;
+            color: var(--color-primary-dark);
+        }
+        
+        h3 {
+            font-size: 1.25rem;
+            color: var(--color-primary-light);
+            margin-bottom: 0.75rem;
+        }
+        
+        h4 {
+            font-size: 1.1rem;
+            color: var(--color-primary-dark);
+            margin-bottom: 1rem;
+            margin-top: 1.5rem;
+        }
+
+        p {
+            font-size: 1rem;
+            font-weight: 300;
+            margin-bottom: 1rem;
+        }
+        
+        li {
+            font-size: 1rem;
+            font-weight: 300;
+            margin-bottom: 0.5rem;
+            margin-left: 20px;
+        }
+
+        /* --- NEW: Subpage Header --- */
+        .subpage-header {
+            background: var(--color-card-bg);
+            border-bottom: 1px solid #e0e0e0;
+            padding: 20px 0;
+        }
+        
+        .subpage-header .container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .subpage-header h1 {
+            font-size: 1.8rem;
+            color: var(--color-primary-dark);
+            margin-bottom: 0;
+        }
+        
+        .back-link {
+            display: inline-block;
+            text-decoration: none;
+            color: var(--color-primary-light);
+            font-weight: 600;
+            font-size: 0.9rem;
+            transition: color 0.3s ease;
+        }
+        
+        .back-link:hover {
+            color: var(--color-accent);
+        }
+
+        /* --- Hero Section (Original) --- */
+        .hero {
+            background: linear-gradient(135deg, var(--color-primary-dark) 0%, var(--color-secondary) 100%);
+            color: #ffffff;
+            padding: 100px 20px 80px 20px;
+            text-align: center;
+            border-bottom-left-radius: 40px;
+            border-bottom-right-radius: 40px;
+        }
+
+        .hero p {
+            font-size: 1.25rem;
+            font-weight: 300;
+            max-width: 700px;
+            margin: 0 auto 1.5rem auto;
+            color: var(--color-text-light);
+        }
+
+        .hero-badge {
+            display: inline-block;
+            background-color: rgba(255, 255, 255, 0.1);
+            color: var(--color-accent);
+            padding: 8px 16px;
+            border-radius: 50px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            margin-bottom: 1rem;
+            letter-spacing: 0.5px;
+        }
+
+        /* --- NEW: Module Detail Section --- */
+        .module-detail-section {
+            padding: 40px 0;
+        }
+        
+        .module-intro {
+            background: var(--color-card-bg);
+            padding: 30px;
+            border-radius: 20px;
+            margin-bottom: 40px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.07);
+        }
+        
+        .module-intro h2 {
+            text-align: left;
+            margin-bottom: 1rem;
+        }
+        
+        .module-intro p {
+            font-size: 1.1rem;
+            color: #555;
+        }
+
+        /* --- Modules Section --- */
+        .modules-section {
+            padding: 60px 0;
+        }
+
+        .modules-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 30px;
+        }
+        
+        /* --- NEW: Grid for this page --- */
+        .module-detail-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 30px;
+        }
+
+        /* --- Module Card --- */
+        .module-card {
+            background: var(--color-card-bg);
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.07);
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .module-card:hover {
+            transform: translateY(-5px); /* Reduced hover effect for subpage */
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.08);
+        }
+
+        .module-number {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--color-accent);
+            margin-bottom: 0.5rem;
+        }
+
+        .module-card p {
+            color: #555;
+            font-size: 0.95rem;
+            flex-grow: 1;
+        }
+        
+        .module-card h3 {
+            min-height: 2.5em; /* Ensures titles align even if one wraps */
+        }
+        
+        /* --- NEW: Style for model name --- */
+        .model-name {
+            font-weight: 700;
+            color: var(--color-primary-light);
+            background-color: #f0f4f8;
+            padding: 2px 8px;
+            border-radius: 6px;
+            font-size: 0.9rem;
+        }
+
+        /* --- Call to Action (CTA) Section --- */
+        .cta-section {
+            background: linear-gradient(135deg, var(--color-secondary) 0%, var(--color-primary-dark) 100%);
+            padding: 60px 20px;
+            text-align: center;
+            border-radius: 20px;
+            margin: 40px auto;
+            max-width: 1200px;
+            width: 90%;
+        }
+
+        .cta-section h2 {
+            color: #ffffff;
+            margin-bottom: 1.5rem;
+        }
+
+        .cta-button {
+            display: inline-block;
+            background-color: var(--color-accent);
+            color: var(--color-primary-dark);
+            font-size: 1.1rem;
+            font-weight: 700;
+            padding: 15px 35px;
+            border-radius: 50px;
+            text-decoration: none;
+            transition: background-color 0.3s ease, transform 0.3s ease;
+        }
+
+        .cta-button:hover {
+            background-color: var(--color-accent-dark);
+            transform: scale(1.05);
+        }
+        
+        /* --- NEW: Task Section (modified CTA) --- */
+        .task-section {
+            background: var(--color-card-bg);
+            border: 2px solid var(--color-accent);
+            padding: 40px;
+            text-align: left;
+            border-radius: 20px;
+            margin: 40px auto;
+            max-width: 1200px;
+            width: 100%;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+        }
+        
+        .task-section h2 {
+            color: var(--color-primary-dark);
+            text-align: left;
+            margin-bottom: 1rem;
+        }
+        
+        .task-section p {
+            color: #333;
+            font-size: 1.05rem;
+        }
+
+        /* --- Footer --- */
+        footer {
+            text-align: center;
+            padding: 30px 0;
+            color: #777;
+            font-size: 0.9rem;
+        }
+
+        /* --- Responsive Design --- */
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 2.2rem;
+            }
+            .hero {
+                padding: 60px 20px 40px 20px;
+                border-bottom-left-radius: 30px;
+                border-bottom-right-radius: 30px;
+            }
+            .modules-grid {
+                grid-template-columns: 1fr;
+            }
+            .subpage-header .container {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+            }
+            .subpage-header h1 {
+                font-size: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Subpage Header -->
+    <header class="subpage-header">
+        <div class="container">
+            <h1>Module 4: Images as Data</h1>
+            <!-- Assume the main page is index.html. Change '#' as needed. -->
+            <a href="#" class="back-link">&larr; Back to All Modules</a>
+        </div>
+    </header>
+
+    <main>
+        <!-- Module Detail Section -->
+        <section class="module-detail-section">
+            <div class="container">
+
+                <!-- Module Introduction -->
+                <div class="module-intro">
+                    <h2>Pattern 2: Natural Sciences & Digital Humanities</h2>
+                    <p>
+                        This module focuses on Computer Vision (CV). You will learn how to
+                        treat images as a rich source of research data, moving beyond
+                        manual observation to automated, large-scale analysis. We will
+                        cover the core patterns for finding, classifying, and extracting
+                        data from images, from microscope slides to historical archives.
+                    </p>
+                </div>
+                
+                <h2>Core Patterns & Models</h2>
+                
+                <!-- Grid for Module Patterns -->
+                <div class="module-detail-grid">
+
+                    <!-- Pattern: Object Detection -->
+                    <div class="module-card">
+                        <span class="module-number">Pattern</span>
+                        <h3>Object Detection ("Find and box it")</h3>
+                        <p>
+                            This pattern is used to find and draw bounding boxes around
+                            specific instances of objects. It doesn't just say "there is a car,"
+                            it says "here is car 1, here is car 2," and provides the
+                            coordinates for each.
+                        </p>
+                        <h4>Key Research Applications:</h4>
+                        <ul>
+                            <li><strong>Ecology:</strong> Automatically counting a specific species in camera trap footage.</li>
+                            <li><strong>Economics:</strong> Monitoring ports by counting ships or containers from satellite imagery.</li>
+                            <li><strong>Digital Humanities:</strong> Finding and cataloging specific objects (e.g., "hats") in archival photos.</li>
+                        </ul>
+                        <h4>Concrete Open Source Model: <span class="model-name">YOLOv8</span></h4>
+                    </div>
+
+                    <!-- Pattern: Segmentation -->
+                    <div class="module-card">
+                        <span class="module-number">Pattern</span>
+                        <h3>Segmentation ("Pixel-level classification")</h3>
+                        <p>
+                            Segmentation is far more granular than detection. It classifies
+                            every single pixel in an image, allowing you to find the
+                            precise shape and boundaries of an object.
+                        </p>
+                        <h4>Key Research Applications:</h4>
+                        <ul>
+                            <li><strong>Computational Biology:</strong> Measuring tumor boundaries in medical MRIs or identifying individual cell nuclei.</li>
+                            <li><strong>Climate Science:</strong> Mapping land use (water vs. forest vs. urban) from satellite data.</li>
+                            <li><strong>Archaeology:</strong> Highlighting the precise outline of ancient structures or artifacts in ground-penetrating radar scans.</li>
+                        </ul>
+                        <h4>Concrete Open Source Model: <span class="model-name">SAM (Segment Anything Model)</span></h4>
+                    </div>
+
+                    <!-- Pattern: OCR -->
+                    <div class="module-card">
+                        <span class="module-number">Pattern</span>
+                        <h3>Optical Character Recognition (OCR)</h3>
+                        <p>
+                            OCR models are specialized to find and transcribe text from
+                            within an image. Modern models can handle varied fonts,
+                            handwriting, and challenging layouts.
+                        </D>
+                        <h4>Key Research Applications:</h4>
+                        <ul>
+                            <li><strong>Digital Humanities:</strong> Digitizing entire archives of scanned newspapers, books, or manuscripts.</li>
+                            <li><strong>Social Sciences:</strong> Extracting data from thousands of scanned forms or surveys.</li>
+                            <li><strong>History:</strong> Transcribing text from archival photographs (e.g., shop signs, posters) to build a richer context.</li>
+                        </ul>
+                        <h4>Concrete Open Source Model: <span class="model-name">Tesseract</span> / <span class="model-name">TrOCR</span></h4>
+                    </div>
+                </div>
+                
+                <!-- Practical Task Section -->
+                <div class="task-section">
+                    <h2>Module 4: Practical Task</h2>
+                    <p>
+                        Download the pre-trained <span class="model-name">YOLOv8</span> model. Write a Python script
+                        using the `ultralytics` library to run the model on a sample
+                        image (e.g., a picture of a busy street or a research-specific
+                        image) and draw bounding boxes on the detected objects (people,
+                        cars, cells, etc.).
+                    </p>
+                </div>
+
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <p>&copy; 2025 The AI-Enabled Researcher. All rights reserved.</p>
+        </div>
+    </footer>
+
+</body>
+</html>

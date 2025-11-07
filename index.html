@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The AI-Enabled Researcher Course</title>
+    
+    <!-- Google Fonts Import -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+
+    <!-- All CSS is in this <style> tag -->
+    <style>
+        :root {
+            --color-primary-dark: #1a1a2e;
+            --color-primary-light: #16213e;
+            --color-secondary: #0f3460;
+            --color-accent: #53d3b0;
+            --color-accent-dark: #46b394;
+            --color-text-light: #e0e0e0;
+            --color-text-dark: #000000;
+            --color-card-bg: #ffffff;
+            --font-family: 'Poppins', sans-serif;
+        }
+
+        /* --- Global Reset --- */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: var(--font-family);
+            background-color: #f4f7fc;
+            color: var(--color-text-dark);
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        .container {
+            width: 90%;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px 0;
+        }
+
+        h1, h2, h3 {
+            font-weight: 600;
+        }
+
+        h1 {
+            font-size: 2.8rem;
+            margin-bottom: 0.5rem;
+        }
+
+        h2 {
+            font-size: 2.2rem;
+            margin-bottom: 2rem;
+            text-align: center;
+            color: var(--color-primary-dark);
+        }
+        
+        h3 {
+            font-size: 1.25rem;
+            color: var(--color-primary-light);
+            margin-bottom: 0.75rem;
+        }
+
+        p {
+            font-size: 1rem;
+            font-weight: 300;
+        }
+
+        /* --- Hero Section --- */
+        .hero {
+            background: linear-gradient(135deg, var(--color-primary-dark) 0%, var(--color-secondary) 100%);
+            color: #ffffff;
+            padding: 100px 20px 80px 20px;
+            text-align: center;
+            border-bottom-left-radius: 40px;
+            border-bottom-right-radius: 40px;
+        }
+
+        .hero p {
+            font-size: 1.25rem;
+            font-weight: 300;
+            max-width: 700px;
+            margin: 0 auto 1.5rem auto;
+            color: var(--color-text-light);
+        }
+
+        .hero-badge {
+            display: inline-block;
+            background-color: rgba(255, 255, 255, 0.1);
+            color: var(--color-accent);
+            padding: 8px 16px;
+            border-radius: 50px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            margin-bottom: 1rem;
+            letter-spacing: 0.5px;
+        }
+
+        /* --- Modules Section --- */
+        .modules-section {
+            padding: 60px 0;
+        }
+
+        .modules-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 30px;
+        }
+
+        /* --- Module Card --- */
+        .module-card {
+            background: var(--color-card-bg);
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.07);
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .module-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        }
+
+        .module-number {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--color-accent);
+            margin-bottom: 0.5rem;
+        }
+
+        .module-card p {
+            color: #555;
+            font-size: 0.95rem;
+            flex-grow: 1;
+        }
+        
+        .module-card h3 {
+            min-height: 2.5em; /* Ensures titles align even if one wraps */
+        }
+
+        /* --- Call to Action (CTA) Section --- */
+        .cta-section {
+            background: linear-gradient(135deg, var(--color-secondary) 0%, var(--color-primary-dark) 100%);
+            padding: 60px 20px;
+            text-align: center;
+            border-radius: 20px;
+            margin: 40px auto;
+            max-width: 1200px;
+            width: 90%;
+        }
+
+        .cta-section h2 {
+            color: #ffffff;
+            margin-bottom: 1.5rem;
+        }
+
+        .cta-button {
+            display: inline-block;
+            background-color: var(--color-accent);
+            color: var(--color-primary-dark);
+            font-size: 1.1rem;
+            font-weight: 700;
+            padding: 15px 35px;
+            border-radius: 50px;
+            text-decoration: none;
+            transition: background-color 0.3s ease, transform 0.3s ease;
+        }
+
+        .cta-button:hover {
+            background-color: var(--color-accent-dark);
+            transform: scale(1.05);
+        }
+
+        /* --- Footer --- */
+        footer {
+            text-align: center;
+            padding: 30px 0;
+            color: #777;
+            font-size: 0.9rem;
+        }
+
+        /* --- Responsive Design --- */
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 2.2rem;
+            }
+            .hero {
+                padding: 60px 20px 40px 20px;
+                border-bottom-left-radius: 30px;
+                border-bottom-right-radius: 30px;
+            }
+            .modules-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Hero Section -->
+    <header class="hero">
+        <div class="container">
+            <span class="hero-badge">A New Research Methodology</span>
+            <h1>The AI-Enabled Researcher</h1>
+            <p>Apply open-source AI models to your research data, from the humanities to the natural sciences.</p>
+        </div>
+    </header>
+
+    <main>
+        <!-- Modules Section -->
+        <section class="modules-section">
+            <div class="container">
+                <h2>Course Modules</h2>
+                <div class="modules-grid">
+
+                    <!-- Module 1 -->
+                    <div class="module-card">
+                        <span class="module-number">Module 1</span>
+                        <h3>The Open Source Research Toolkit</h3>
+                        <p>Learn to find, evaluate, and legally use open-source models for academic research from hubs like Hugging Face and GitHub.</p>
+                    </div>
+
+                    <!-- Module 2 -->
+                    <div class="module-card">
+                        <span class="module-number">Module 2</span>
+                        <h3>The Researcher's Methodology: Validation & Ethics</h3>
+                        <p>Treat AI as a scientific instrument. Learn to calibrate, validate, and manage bias to ensure reproducible, ethical results.</p>
+                    </div>
+
+                    <!-- Module 3 -->
+                    <div class="module-card">
+                        <span class="module-number">Module 3</span>
+                        <h3>Pattern 1: Text as Data (Humanities & Social Sciences)</h3>
+                        <p>Analyze massive text archives, transcripts, or surveys for themes and entities using models like BERTopic and spaCy.</p>
+                    </div>
+
+                    <!-- Module 4 -->
+                    <div class="module-card">
+                        <span class="module-number">Module 4</span>
+                        <h3>Pattern 2: Images as Data (Natural Sciences & Digital Humanities)</h3>
+                        <p>Quantify and classify visual data, from microscope slides to satellite feeds, using models like YOLOv8 and the Segment Anything Model (SAM).</p>
+                    </div>
+
+                    <!-- Module 5 -->
+                    <div class="module-card">
+                        <span class="module-number">Module 5</span>
+                        <h3>Pattern 3: Signals, Structures & Time-Series</h3>
+                        <p>Find patterns in non-visual data like sensor readings, climate records, and genetic sequences with models like ESMFold and Prophet.</p>
+                    </div>
+                    
+                    <!-- Module 6 -->
+                    <div class="module-card">
+                        <span class="module-number">Module 6</span>
+                        <h3>Pattern 4: Fusing Data (Multimodal AI in Research)</h3>
+                        <p>Solve complex problems by reasoning across data types, such as asking questions about charts or diagrams with models like LLaVA.</p>
+                    </div>
+
+                    <!-- Module 7 (Capstone) -->
+                    <div class="module-card">
+                        <span class="module-number">Module 7</span>
+                        <h3>Capstone: Designing a Novel Research Pipeline</h3>
+                        <p>Synthesize all patterns to design and propose a unique, modular AI-powered "Methods" section for your own research question.</p>
+                    </div>
+
+                </div>
+            </div>
+        </section>
+
+        <!-- Call to Action Section -->
+        <section class="cta-section">
+            <div class="container">
+                <h2>Ready to Transform Your Research?</h2>
+                <a href="#" class="cta-button">Enroll in the Course Today</a>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <p>&copy; 2025 The AI-Enabled Researcher. All rights reserved.</p>
+        </div>
+    </footer>
+
+</body>
+</html>
