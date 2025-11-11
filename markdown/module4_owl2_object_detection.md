@@ -233,7 +233,7 @@ print(f"Total images in ENA24 dataset: {len(ena24_df)}")
 # Take a sample of 5 images
 sample_images = ena24_df.sample(10, random_state=42) # Use a random state for reproducibility
 
-texts = [["a photo of an animal"]]
+texts = [["a photo of an animal", "a photo of a bird", "animal", "bird"]]
 
 for index, row in sample_images.iterrows():
     image_relative_path = row['filepath']
