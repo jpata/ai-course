@@ -169,5 +169,43 @@ if os.path.exists(train_dir):
         print("Could not find 'best.pt' in the latest training run directory.")
 else:
     print("No training runs found. Skipping inference.")
+```
+
+<!-- #region -->
+## Visualize Training and Validation Loss
+<!-- #endregion -->
+
+```python
+import matplotlib.pyplot as plt
+
+# Path to the directory where training runs are saved
+train_dir = 'runs/detect'
+
+# Find the latest training directory
+if os.path.exists(train_dir):
+    latest_train_run = max([os.path.join(train_dir, d) for d in os.listdir(train_dir) if os.path.isdir(os.path.join(train_dir, d)) and d.startswith('train')], key=os.path.getmtime)
+    results_csv_path = os.path.join(latest_train_run, 'results.csv')
+
+    if os.path.exists(results_csv_path):
+        print(f"Loading training results from: {results_csv_path}")
+        results_df = pd.read_csv(results_csv_path)
+
+        plt.figure(figsize=(12, 6))
+        plt.plot(results_df['epoch'], results_df['train/box_loss'], label='Train Box Loss')
+        plt.plot(results_df['epoch'], results_df['val/box_loss'], label='Val Box Loss')
+        plt.plot(results_df['epoch'], results_df['train/cls_loss'], label='Train Class Loss')
+        plt.plot(results_df['epoch'], results_df['val/cls_loss'], label='Val Class Loss')
+        plt.plot(results_df['epoch'], results_df['train/dfl_loss'], label='Train DFL Loss')
+        plt.plot(results_df['epoch'], results_df['val/dfl_loss'], label='Val DFL Loss')
+        plt.xlabel('Epoch')
+        plt.ylabel('Loss')
+        plt.title('Training and Validation Loss Curves')
+        plt.legend()
+        plt.grid(True)
+        plt.show()
+    else:
+        print(f"Could not find 'results.csv' in {latest_train_run}.")
+else:
+    print("No training runs found. Skipping loss visualization.")
 
 ```
