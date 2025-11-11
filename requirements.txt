@@ -1,0 +1,10 @@
+transformers[torch]
+datasets
+notebook
+lightning
+matplotlib
+openml
+jupyter-book
+jupyter-server
+ultralytics
+scikit-learn
