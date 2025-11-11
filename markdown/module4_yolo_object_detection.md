@@ -72,6 +72,73 @@ for conf in confidence_thresholds:
     display(im)
 ```
 
+## Exploring the ENA24 Dataset
+
+Instead of fine-tuning on a custom dataset, we will explore the `ENA24` dataset directly from the local checkout. This involves loading the existing labels, visualizing the frequency of common names, and displaying sample images for each unique common name.
+
+```python
+import pandas as pd
+import matplotlib.pyplot as plt
+import os
+from PIL import Image
+from IPython.display import display, HTML
+
+# Define the base path to the locally checked out dataset
+base_data_path = '/home/joosep/ai-course/data/IDLE-OO-Camera-Traps/'
+ena24_csv_path = os.path.join(base_data_path, 'ENA24-balanced.csv')
+
+# Load the ENA24-balanced.csv file
+try:
+    ena24_df = pd.read_csv(ena24_csv_path)
+    print(f"Successfully loaded {ena24_csv_path}")
+    print(f"Total images in ENA24 dataset: {len(ena24_df)}")
+except FileNotFoundError:
+    print(f"Error: {ena24_csv_path} not found. Please ensure the dataset is correctly checked out.")
+    ena24_df = pd.DataFrame() # Create an empty DataFrame to avoid further errors
+
+if not ena24_df.empty:
+    # --- Visualize "common_name" frequency ---
+    print("\nVisualizing 'common_name' frequency...")
+    plt.figure(figsize=(12, 6))
+    ena24_df['common_name'].value_counts().plot(kind='bar')
+    plt.title('Frequency of Common Names in ENA24 Dataset')
+    plt.xlabel('Common Name')
+    plt.ylabel('Count')
+    plt.xticks(rotation=45, ha='right')
+    plt.tight_layout()
+    plt.show()
+
+    # --- Display 2 images from each unique "common_name" ---
+    print("\nDisplaying 2 images from each unique 'common_name'...")
+    unique_common_names = ena24_df['common_name'].unique()
+    
+    for name in unique_common_names:
+        # Get up to 2 image paths for the current common name
+        sample_images = ena24_df[ena24_df['common_name'] == name].head(2)
+        
+        if not sample_images.empty:
+            print(f"\n--- Common Name: {name} ---")
+            for index, row in sample_images.iterrows():
+                # Construct the full image path
+                # The 'filepath' column contains paths like 'ENA24/image_uuid.png'
+                # The actual images are under data/IDLE-OO-Camera-Traps/data/test/ENA24/
+                image_relative_path = row['filepath']
+                # Assuming the images are in data/IDLE-OO-Camera-Traps/data/test/
+                full_image_path = os.path.join(base_data_path, 'data/test/', image_relative_path)
+                
+                if os.path.exists(full_image_path):
+                    try:
+                        img = Image.open(full_image_path)
+                        display(img)
+                    except Exception as e:
+                        print(f"Could not load image {full_image_path}: {e}")
+                else:
+                    print(f"Image file not found: {full_image_path}")
+else:
+    print("No data loaded from ENA24-balanced.csv, skipping visualization and image display.")
+
+```
+
 
 ### YOLO Intermediate Layer Visualization
 

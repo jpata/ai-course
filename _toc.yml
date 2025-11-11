@@ -1,6 +1,0 @@
-# _toc.yml
-format: jb-book
-root: module4_yolo_object_detection
-chapters:
-- file: module4_owl2_object_detection
-- file: module4_object_detection
