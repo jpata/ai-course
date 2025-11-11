@@ -21,7 +21,7 @@ This notebook demonstrates how to fine-tune a YOLO model on a custom dataset. Th
 First, let's install the necessary libraries.
 
 ```python
-!pip install -q ultralytics pandas pyyaml
+#!pip install -q ultralytics pandas pyyaml
 ```
 
 Now, let's import the required libraries.
@@ -34,6 +34,10 @@ from ultralytics import YOLO
 from PIL import Image
 from IPython.display import display
 import pandas as pd
+
+import matplotlib
+%matplotlib inline
+import matplotlib.pyplot as plt
 ```
 
 <!-- #region -->
@@ -112,15 +116,11 @@ If the `ena24_yolo_dataset.yaml` was created successfully, we can proceed with t
 <!-- #endregion -->
 
 ```python
-if os.path.exists('ena24_yolo_dataset.yaml'):
-    # Load a pretrained YOLO model
-    model = YOLO('yolov8n.pt')
+# Load a pretrained YOLO model
+model = YOLO('yolov8n.pt')
 
-    # Train the model
-    # With a small dataset of 10 images, we'll train for a few epochs.
-    results = model.train(data='ena24_yolo_dataset.yaml', epochs=3, imgsz=640)
-else:
-    print("Skipping training because 'ena24_yolo_dataset.yaml' was not created.")
+# Train the model
+results = model.train(data='ena24_yolo_dataset.yaml', epochs=100, imgsz=640)
 ```
 
 <!-- #region -->
@@ -137,38 +137,32 @@ We will select one of the 10 sample images that were labeled.
 train_dir = 'runs/detect'
 
 # Find the latest training directory
-if os.path.exists(train_dir):
-    latest_train_run = max(os.listdir(train_dir), key=lambda d: os.path.getmtime(os.path.join(train_dir, d)))
-    best_model_path = os.path.join(train_dir, latest_train_run, 'weights/best.pt')
+latest_train_run = max(os.listdir(train_dir), key=lambda d: os.path.getmtime(os.path.join(train_dir, d)))
+best_model_path = os.path.join(train_dir, latest_train_run, 'weights/best.pt')
 
-    if os.path.exists(best_model_path):
-        print(f"Loading fine-tuned model from: {best_model_path}")
-        
-        # Load the fine-tuned model
-        model_finetuned = YOLO(best_model_path)
+print(f"Loading fine-tuned model from: {best_model_path}")
 
-        # Get the path of one of the sample images
-        base_data_path = 'data/IDLE-OO-Camera-Traps/'
-        ena24_csv_path = os.path.join(base_data_path, 'ENA24-balanced.csv')
-        ena24_df = pd.read_csv(ena24_csv_path)
-        sample_images = ena24_df.sample(10, random_state=42)
-        
-        image_relative_path = sample_images.iloc[0]['filepath']
-        full_image_path = os.path.join(base_data_path, 'data/test/', image_relative_path)
+# Load the fine-tuned model
+model_finetuned = YOLO(best_model_path)
 
-        print(f"Running inference on: {full_image_path}")
+# Get the path of one of the sample images
+base_data_path = 'data/IDLE-OO-Camera-Traps/'
+ena24_csv_path = os.path.join(base_data_path, 'ENA24-balanced.csv')
+ena24_df = pd.read_csv(ena24_csv_path)
+sample_images = ena24_df.sample(10, random_state=42)
 
-        # Run inference
-        results = model_finetuned(full_image_path)
+image_relative_path = sample_images.iloc[0]['filepath']
+full_image_path = os.path.join(base_data_path, 'data/test/', image_relative_path)
 
-        # Display results
-        im_array = results[0].plot()
-        im = Image.fromarray(im_array[..., ::-1])
-        display(im)
-    else:
-        print("Could not find 'best.pt' in the latest training run directory.")
-else:
-    print("No training runs found. Skipping inference.")
+print(f"Running inference on: {full_image_path}")
+
+# Run inference
+results = model_finetuned(full_image_path)
+
+# Display results
+im_array = results[0].plot()
+im = Image.fromarray(im_array[..., ::-1])
+display(im)
 ```
 
 <!-- #region -->
@@ -176,36 +170,17 @@ else:
 <!-- #endregion -->
 
 ```python
-import matplotlib.pyplot as plt
-
-# Path to the directory where training runs are saved
-train_dir = 'runs/detect'
-
 # Find the latest training directory
-if os.path.exists(train_dir):
-    latest_train_run = max([os.path.join(train_dir, d) for d in os.listdir(train_dir) if os.path.isdir(os.path.join(train_dir, d)) and d.startswith('train')], key=os.path.getmtime)
-    results_csv_path = os.path.join(latest_train_run, 'results.csv')
+results_csv_path = os.path.join(train_dir, latest_train_run, 'results.csv')
 
-    if os.path.exists(results_csv_path):
-        print(f"Loading training results from: {results_csv_path}")
-        results_df = pd.read_csv(results_csv_path)
+print(f"Loading training results from: {results_csv_path}")
+results_df = pd.read_csv(results_csv_path)
 
-        plt.figure(figsize=(12, 6))
-        plt.plot(results_df['epoch'], results_df['train/box_loss'], label='Train Box Loss')
-        plt.plot(results_df['epoch'], results_df['val/box_loss'], label='Val Box Loss')
-        plt.plot(results_df['epoch'], results_df['train/cls_loss'], label='Train Class Loss')
-        plt.plot(results_df['epoch'], results_df['val/cls_loss'], label='Val Class Loss')
-        plt.plot(results_df['epoch'], results_df['train/dfl_loss'], label='Train DFL Loss')
-        plt.plot(results_df['epoch'], results_df['val/dfl_loss'], label='Val DFL Loss')
-        plt.xlabel('Epoch')
-        plt.ylabel('Loss')
-        plt.title('Training and Validation Loss Curves')
-        plt.legend()
-        plt.grid(True)
-        plt.show()
-    else:
-        print(f"Could not find 'results.csv' in {latest_train_run}.")
-else:
-    print("No training runs found. Skipping loss visualization.")
-
+fig = plt.figure(figsize=(12, 6))
+plt.plot(results_df['epoch'], results_df['train/box_loss']+results_df['train/cls_loss']+results_df['train/dfl_loss'], label='Train Loss')
+plt.plot(results_df['epoch'], results_df['val/box_loss']+results_df['val/cls_loss']+results_df['val/dfl_loss'], label='Val Loss')
+plt.xlabel('Epoch')
+plt.ylabel('Loss')
+plt.title('Training and Validation Loss Curves')
+plt.legend()
 ```
