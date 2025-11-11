@@ -246,7 +246,7 @@ print(f"Saved {len(class_names)} class names to {os.path.join(labels_base_dir, '
 
 
 # Take a sample of 10 images for demonstration
-sample_images = ena24_df.sample(10, random_state=42) # Use a random state for reproducibility
+sample_images = ena24_df.sample(100, random_state=42) # Use a random state for reproducibility
 
 # Use a general prompt for object detection
 texts = [["a photo of an animal", "a photo of a bird", "animal", "bird"]]

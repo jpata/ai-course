@@ -21,7 +21,7 @@ This notebook demonstrates how to fine-tune a YOLO model on a custom dataset. Th
 First, let's install the necessary libraries.
 
 ```python
-#!pip install -q ultralytics pandas pyyaml
+#!pip install -q ultralytics pandas pyyaml scikit-learn
 ```
 
 Now, let's import the required libraries.
@@ -50,12 +50,14 @@ YOLO models require a `dataset.yaml` file that specifies the dataset paths and c
 
 ```python
 import glob
+from sklearn.model_selection import train_test_split
 
-# --- Find all labeled images and create train.txt ---
+# --- Find all labeled images and create train.txt and val.txt ---
 base_path = '/home/joosep/ai-course/data/IDLE-OO-Camera-Traps_yolo'
 labels_dir = os.path.join(base_path, 'labels')
 images_dir = os.path.join(base_path, 'images')
 train_file_path = os.path.join(base_path, 'train.txt')
+val_file_path = os.path.join(base_path, 'val.txt')
 image_files = []
 
 # Recursively find all .txt files in the labels directory, excluding classes.txt
@@ -70,22 +72,31 @@ for label_file in label_files:
     if os.path.exists(image_path):
         image_files.append(image_path)
 
+if not image_files:
+    raise Exception("No labeled images found. 'train.txt' and 'val.txt' were not created.")
+
+# Split the data into training and validation sets (80% train, 20% val)
+train_images, val_images = train_test_split(image_files, test_size=0.2, random_state=42)
+
 # Write the absolute paths of labeled images to train.txt
-if image_files:
-    with open(train_file_path, 'w') as f:
-        for image_path in image_files:
-            f.write(f"{image_path}\n")
-    print(f"Found {len(image_files)} labeled images.")
-    print(f"Created '{train_file_path}' with the list of images for training.")
-else:
-    raise Exception("No labeled images found. 'train.txt' was not created.")
+with open(train_file_path, 'w') as f:
+    for image_path in train_images:
+        f.write(f"{image_path}\n")
+print(f"Found {len(image_files)} labeled images.")
+print(f"Created '{train_file_path}' with {len(train_images)} images for training.")
+
+# Write the absolute paths of labeled images to val.txt
+with open(val_file_path, 'w') as f:
+    for image_path in val_images:
+        f.write(f"{image_path}\n")
+print(f"Created '{val_file_path}' with {len(val_images)} images for validation.")
 
 
 # --- Create dataset.yaml ---
 dataset_config = {
     'path': base_path,
     'train': train_file_path,  # Path to the file with image paths
-    'val': train_file_path,    # Use the same for validation
+    'val': val_file_path,    # Path to the file with validation image paths
     'names': {}
 }
 classes_path = os.path.join(os.path.dirname(labels_dir), 'classes.txt')
@@ -149,9 +160,9 @@ model_finetuned = YOLO(best_model_path)
 base_data_path = 'data/IDLE-OO-Camera-Traps/'
 ena24_csv_path = os.path.join(base_data_path, 'ENA24-balanced.csv')
 ena24_df = pd.read_csv(ena24_csv_path)
-sample_images = ena24_df.sample(10, random_state=42)
+sample_images = ena24_df.sample(200, random_state=42)
 
-image_relative_path = sample_images.iloc[0]['filepath']
+image_relative_path = sample_images.iloc[101]['filepath']
 full_image_path = os.path.join(base_data_path, 'data/test/', image_relative_path)
 
 print(f"Running inference on: {full_image_path}")
