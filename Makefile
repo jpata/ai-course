@@ -23,4 +23,4 @@ execute: $(EXECUTED_NOTEBOOK_FILES)
 
 notebooks_executed/%.ipynb: notebooks/%.ipynb
 	mkdir -p notebooks_executed
-	jupyter nbconvert --to notebook --execute $< --output-dir notebooks_executed/
+	papermill --cwd . $< $@

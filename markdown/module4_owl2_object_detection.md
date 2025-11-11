@@ -1,4 +1,3 @@
----
 jupyter:
   jupytext:
     default_lexer: python
@@ -40,7 +39,7 @@ import requests
 Next, we load the `imageomics/IDLE-OO-Camera-Traps` dataset. We'll just take one example from the training split.
 
 ```python label="load-image-cell"
-dataset = load_dataset("imageomics/IDLE-OO-Camera-Traps", split="test", streaming=True)
+dataset = load_dataset(path="./data/IDLE-OO-Camera-Traps", split="test")
 iterator = iter(dataset)
 sample = next(iterator)
 image = sample["image"]
@@ -212,4 +211,67 @@ for j in range(i + 1, len(axes)):
 
 plt.tight_layout()
 plt.show()
+```
+
+## Automatic data labelling
+
+Here we will loop over images from the ENA24 dataset and apply the "a photo of an animal" prompt to automatically label them.
+
+```python
+import pandas as pd
+import os
+
+# Define the base path to the locally checked out dataset
+base_data_path = 'data/IDLE-OO-Camera-Traps/'
+ena24_csv_path = os.path.join(base_data_path, 'ENA24-balanced.csv')
+
+# Load the ENA24-balanced.csv file
+ena24_df = pd.read_csv(ena24_csv_path)
+print(f"Successfully loaded {ena24_csv_path}")
+print(f"Total images in ENA24 dataset: {len(ena24_df)}")
+
+# Take a sample of 5 images
+sample_images = ena24_df.sample(10, random_state=42) # Use a random state for reproducibility
+
+texts = [["a photo of an animal"]]
+
+for index, row in sample_images.iterrows():
+    image_relative_path = row['filepath']
+    full_image_path = os.path.join(base_data_path, 'data/test/', image_relative_path)
+    
+    if os.path.exists(full_image_path):
+        try:
+            print(f"Processing image: {full_image_path}")
+            image = Image.open(full_image_path).convert("RGB")
+            
+            inputs = processor(text=texts, images=image, return_tensors="pt")
+            
+            with torch.no_grad():
+                outputs = model(**inputs)
+                
+            target_sizes = torch.Tensor([image.size[::-1]])
+            results = processor.post_process_object_detection(outputs=outputs, target_sizes=target_sizes, threshold=0.2)
+
+            i = 0  # Predictions for the first (and only) image
+            text = texts[i]
+            boxes, scores, labels = results[i]["boxes"], results[i]["scores"], results[i]["labels"]
+
+            image_with_boxes = image.copy()
+            draw = ImageDraw.Draw(image_with_boxes)
+
+            for box, score, label in zip(boxes, scores, labels):
+                box = [round(i, 2) for i in box.tolist()]
+                color = "red"
+                print(
+                    f"Detected {text[label]} with confidence {round(score.item(), 3)} at location {box}"
+                )
+                draw.rectangle(box, outline=color, width=3)
+                draw.text((box[0], box[1]), f"{text[label]} {round(score.item(), 3)}", fill=color)
+
+            display(image_with_boxes)
+
+        except Exception as e:
+            print(f"Could not process image {full_image_path}: {e}")
+    else:
+        print(f"Image file not found: {full_image_path}")
 ```

@@ -8,3 +8,4 @@ jupyter-book
 jupyter-server
 ultralytics
 scikit-learn
+papermill
