@@ -220,9 +220,11 @@ Here we will loop over images from the ENA24 dataset and apply the "a photo of a
 ```python
 import pandas as pd
 import os
+import shutil
 
 # Define the base path to the locally checked out dataset
 base_data_path = 'data/IDLE-OO-Camera-Traps/'
+base_data_path_yolo = 'data/IDLE-OO-Camera-Traps_yolo'
 ena24_csv_path = os.path.join(base_data_path, 'ENA24-balanced.csv')
 
 # Load the ENA24-balanced.csv file
@@ -235,7 +237,7 @@ class_names = sorted(ena24_df['common_name'].unique())
 class_map = {name: i for i, name in enumerate(class_names)}
 
 # Define the output directory for labels and save the class names
-labels_base_dir = os.path.join(base_data_path, 'labels/test')
+labels_base_dir = os.path.join(base_data_path_yolo)
 os.makedirs(labels_base_dir, exist_ok=True)
 with open(os.path.join(labels_base_dir, 'classes.txt'), 'w') as f:
     for name in class_names:
@@ -306,6 +308,24 @@ for index, row in sample_images.iterrows():
                     f.write(f"{class_id} {norm_x_center:.6f} {norm_y_center:.6f} {norm_width:.6f} {norm_height:.6f}\n")
                 
                 print(f"Saved YOLO label for '{common_name}' to {label_full_path}")
+
+                # Define paths for YOLO training data
+                yolo_train_images_dir = os.path.join(labels_base_dir, 'images')
+                yolo_train_labels_dir = os.path.join(labels_base_dir, 'labels')
+                os.makedirs(yolo_train_images_dir, exist_ok=True)
+                os.makedirs(yolo_train_labels_dir, exist_ok=True)
+
+                # Copy image to YOLO training images directory
+                image_name = os.path.basename(full_image_path)
+                destination_image_path = os.path.join(yolo_train_images_dir, image_name)
+                shutil.copyfile(full_image_path, destination_image_path)
+                print(f"Copied image to {destination_image_path}")
+
+                # Copy label file to YOLO training labels directory
+                label_name = os.path.basename(label_full_path)
+                destination_label_path = os.path.join(yolo_train_labels_dir, label_name)
+                shutil.copyfile(label_full_path, destination_label_path)
+                print(f"Copied label to {destination_label_path}")
 
             # Visualize the detections on the image for verification
             image_with_boxes = image.copy()

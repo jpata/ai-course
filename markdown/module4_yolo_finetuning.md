@@ -45,14 +45,46 @@ YOLO models require a `dataset.yaml` file that specifies the dataset paths and c
 <!-- #endregion -->
 
 ```python
+import glob
+
+# --- Find all labeled images and create train.txt ---
+base_path = '/home/joosep/ai-course/data/IDLE-OO-Camera-Traps_yolo'
+labels_dir = os.path.join(base_path, 'labels')
+images_dir = os.path.join(base_path, 'images')
+train_file_path = os.path.join(base_path, 'train.txt')
+image_files = []
+
+# Recursively find all .txt files in the labels directory, excluding classes.txt
+label_files = [f for f in glob.glob(os.path.join(labels_dir, '**/*.txt'), recursive=True) if os.path.basename(f) != 'classes.txt']
+
+for label_file in label_files:
+    # Derive the corresponding image path, assuming .png extension
+    relative_label_path = os.path.relpath(label_file, labels_dir)
+    image_name = os.path.splitext(relative_label_path)[0] + '.png'
+    image_path = os.path.join(images_dir, image_name)
+    
+    if os.path.exists(image_path):
+        image_files.append(image_path)
+
+# Write the absolute paths of labeled images to train.txt
+if image_files:
+    with open(train_file_path, 'w') as f:
+        for image_path in image_files:
+            f.write(f"{image_path}\n")
+    print(f"Found {len(image_files)} labeled images.")
+    print(f"Created '{train_file_path}' with the list of images for training.")
+else:
+    raise Exception("No labeled images found. 'train.txt' was not created.")
+
+
+# --- Create dataset.yaml ---
 dataset_config = {
-    'path': '/home/joosep/ai-course/data/IDLE-OO-Camera-Traps',
-    'train': 'data/test',
-    'val': 'data/test',
+    'path': base_path,
+    'train': train_file_path,  # Path to the file with image paths
+    'val': train_file_path,    # Use the same for validation
     'names': {}
 }
-
-classes_path = '/home/joosep/ai-course/data/IDLE-OO-Camera-Traps/labels/test/classes.txt'
+classes_path = os.path.join(os.path.dirname(labels_dir), 'classes.txt')
 
 try:
     with open(classes_path, 'r') as f:
@@ -62,12 +94,12 @@ try:
     with open('ena24_yolo_dataset.yaml', 'w') as f:
         yaml.dump(dataset_config, f)
 
-    print("ena24_yolo_dataset.yaml created:")
+    print("\nena24_yolo_dataset.yaml created:")
     with open('ena24_yolo_dataset.yaml', 'r') as f:
         print(f.read())
 except FileNotFoundError:
-    print(f"Error: '{classes_path}' not found.")
-    print("Please run the 'Automatic data labelling' section of the 'module4_owl2_object_detection.md' notebook to generate labels and the classes.txt file.")
+    print(f"\nError: '{classes_path}' not found.")
+    raise Exception("Please run the 'Automatic data labelling' section of the 'module4_owl2_object_detection.md' notebook to generate labels and the classes.txt file.")
 
 ```
 
@@ -86,7 +118,7 @@ if os.path.exists('ena24_yolo_dataset.yaml'):
 
     # Train the model
     # With a small dataset of 10 images, we'll train for a few epochs.
-    results = model.train(data='ena24_yolo_dataset.yaml', epochs=10, imgsz=640)
+    results = model.train(data='ena24_yolo_dataset.yaml', epochs=3, imgsz=640)
 else:
     print("Skipping training because 'ena24_yolo_dataset.yaml' was not created.")
 ```
