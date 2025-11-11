@@ -230,9 +230,23 @@ ena24_df = pd.read_csv(ena24_csv_path)
 print(f"Successfully loaded {ena24_csv_path}")
 print(f"Total images in ENA24 dataset: {len(ena24_df)}")
 
-# Take a sample of 5 images
+# Create class mapping from the 'common_name' column
+class_names = sorted(ena24_df['common_name'].unique())
+class_map = {name: i for i, name in enumerate(class_names)}
+
+# Define the output directory for labels and save the class names
+labels_base_dir = os.path.join(base_data_path, 'labels/test')
+os.makedirs(labels_base_dir, exist_ok=True)
+with open(os.path.join(labels_base_dir, 'classes.txt'), 'w') as f:
+    for name in class_names:
+        f.write(f"{name}\n")
+print(f"Saved {len(class_names)} class names to {os.path.join(labels_base_dir, 'classes.txt')}")
+
+
+# Take a sample of 10 images for demonstration
 sample_images = ena24_df.sample(10, random_state=42) # Use a random state for reproducibility
 
+# Use a general prompt for object detection
 texts = [["a photo of an animal", "a photo of a bird", "animal", "bird"]]
 
 for index, row in sample_images.iterrows():
@@ -244,29 +258,67 @@ for index, row in sample_images.iterrows():
             print(f"Processing image: {full_image_path}")
             image = Image.open(full_image_path).convert("RGB")
             
+            # Prepare inputs for OWL2 model
             inputs = processor(text=texts, images=image, return_tensors="pt")
             
+            # Get model outputs
             with torch.no_grad():
                 outputs = model(**inputs)
                 
+            # Post-process the outputs
             target_sizes = torch.Tensor([image.size[::-1]])
             results = processor.post_process_object_detection(outputs=outputs, target_sizes=target_sizes, threshold=0.2)
 
             i = 0  # Predictions for the first (and only) image
-            text = texts[i]
             boxes, scores, labels = results[i]["boxes"], results[i]["scores"], results[i]["labels"]
 
+            # If any objects are detected, process the highest-confidence one
+            if len(scores) > 0:
+                # Find the detection with the highest score
+                best_score_index = scores.argmax()
+                best_box = boxes[best_score_index]
+                
+                # Get the ground truth class ID from the CSV
+                common_name = row['common_name']
+                class_id = class_map[common_name]
+
+                # Convert bounding box to YOLO format (normalized)
+                img_width, img_height = image.size
+                x_min, y_min, x_max, y_max = best_box.tolist()
+                
+                x_center = (x_min + x_max) / 2
+                y_center = (y_min + y_max) / 2
+                box_width = x_max - x_min
+                box_height = y_max - y_min
+
+                norm_x_center = x_center / img_width
+                norm_y_center = y_center / img_height
+                norm_width = box_width / img_width
+                norm_height = box_height / img_height
+
+                # Define the path for the YOLO label file
+                label_relative_path = os.path.splitext(image_relative_path)[0] + '.txt'
+                label_full_path = os.path.join(labels_base_dir, label_relative_path)
+                os.makedirs(os.path.dirname(label_full_path), exist_ok=True)
+
+                # Write the YOLO label file
+                with open(label_full_path, 'w') as f:
+                    f.write(f"{class_id} {norm_x_center:.6f} {norm_y_center:.6f} {norm_width:.6f} {norm_height:.6f}\n")
+                
+                print(f"Saved YOLO label for '{common_name}' to {label_full_path}")
+
+            # Visualize the detections on the image for verification
             image_with_boxes = image.copy()
             draw = ImageDraw.Draw(image_with_boxes)
 
             for box, score, label in zip(boxes, scores, labels):
                 box = [round(i, 2) for i in box.tolist()]
-                color = "red"
+                detected_text = texts[0][label.item()]
                 print(
-                    f"Detected {text[label]} with confidence {round(score.item(), 3)} at location {box}"
+                    f"Detected '{detected_text}' with confidence {round(score.item(), 3)} at location {box}"
                 )
-                draw.rectangle(box, outline=color, width=3)
-                draw.text((box[0], box[1]), f"{text[label]} {round(score.item(), 3)}", fill=color)
+                draw.rectangle(box, outline="red", width=3)
+                draw.text((box[0], box[1]), f"{detected_text} {round(score.item(), 3)}", fill="red")
 
             display(image_with_boxes)
 

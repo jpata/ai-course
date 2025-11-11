@@ -23,4 +23,4 @@ execute: $(EXECUTED_NOTEBOOK_FILES)
 
 notebooks_executed/%.ipynb: notebooks/%.ipynb
 	mkdir -p notebooks_executed
-	papermill --cwd . --kernel python3 $< $@
+	papermill --cwd `pwd` --kernel python3 $< $@
