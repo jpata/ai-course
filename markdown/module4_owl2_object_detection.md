@@ -222,6 +222,9 @@ import pandas as pd
 import os
 import shutil
 
+device = torch.device("cuda")
+model.to(device)
+
 # Define the base path to the locally checked out dataset
 base_data_path = 'data/IDLE-OO-Camera-Traps/'
 base_data_path_yolo = 'data/IDLE-OO-Camera-Traps_yolo'
@@ -245,8 +248,9 @@ with open(os.path.join(labels_base_dir, 'classes.txt'), 'w') as f:
 print(f"Saved {len(class_names)} class names to {os.path.join(labels_base_dir, 'classes.txt')}")
 
 
-# Take a sample of 10 images for demonstration
-sample_images = ena24_df.sample(100, random_state=42) # Use a random state for reproducibility
+# Take a sample of images for demonstration
+NUM_IMAGES_LABEL=500
+sample_images = ena24_df.sample(NUM_IMAGES_LABEL, random_state=42) # Use a random state for reproducibility
 
 # Use a general prompt for object detection
 texts = [["a photo of an animal", "a photo of a bird", "animal", "bird"]]
@@ -261,7 +265,7 @@ for index, row in sample_images.iterrows():
             image = Image.open(full_image_path).convert("RGB")
             
             # Prepare inputs for OWL2 model
-            inputs = processor(text=texts, images=image, return_tensors="pt")
+            inputs = processor(text=texts, images=image, return_tensors="pt").to(device)
             
             # Get model outputs
             with torch.no_grad():
