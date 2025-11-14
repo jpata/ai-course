@@ -156,24 +156,40 @@ print(f"Loading fine-tuned model from: {best_model_path}")
 # Load the fine-tuned model
 model_finetuned = YOLO(best_model_path)
 
-# Get the path of one of the sample images
-base_data_path = 'data/IDLE-OO-Camera-Traps/'
-ena24_csv_path = os.path.join(base_data_path, 'ENA24-balanced.csv')
-ena24_df = pd.read_csv(ena24_csv_path)
-sample_images = ena24_df.sample(200, random_state=42)
+# Get the paths of up to 9 validation images
+if len(val_images) < 9:
+    print(f"Warning: Found only {len(val_images)} validation images. Displaying all of them.")
+    display_images = val_images
+else:
+    display_images = val_images[:9]
 
-image_relative_path = sample_images.iloc[101]['filepath']
-full_image_path = os.path.join(base_data_path, 'data/test/', image_relative_path)
+if not display_images:
+    raise Exception("No validation images found to display results.")
 
-print(f"Running inference on: {full_image_path}")
+# Create a 3x3 grid for displaying the images
+fig, axs = plt.subplots(3, 3, figsize=(15, 15))
+axs = axs.flatten()
 
-# Run inference
-results = model_finetuned(full_image_path)
+# Run inference and display results
+for i, image_path in enumerate(display_images):
+    print(f"Running inference on: {image_path}")
+    results = model_finetuned(image_path)
+    
+    # Plot results and convert to an image
+    im_array = results[0].plot()
+    im = Image.fromarray(im_array[..., ::-1])
+    
+    # Display the image in the subplot
+    axs[i].imshow(im)
+    axs[i].axis('off') # Hide axes
+    axs[i].set_title(os.path.basename(image_path))
 
-# Display results
-im_array = results[0].plot()
-im = Image.fromarray(im_array[..., ::-1])
-display(im)
+# Hide any unused subplots
+for j in range(i + 1, len(axs)):
+    axs[j].axis('off')
+
+plt.tight_layout()
+plt.show()
 ```
 
 <!-- #region -->
