@@ -218,6 +218,15 @@ for name in unique_common_names:
                 try:
                     img = Image.open(full_image_path)
                     display(img)
+
+                    # Run YOLO detection on the image
+                    results_yolo_sample = model_yolo(img.copy(), conf=0.25) # Using a default confidence for display
+
+                    # Plot results
+                    im_array_yolo = results_yolo_sample[0].plot()
+                    im_yolo = Image.fromarray(im_array_yolo[..., ::-1])  # RGB PIL image
+                    print(f"YOLO Detections for {name}:")
+                    display(im_yolo)
                 except Exception as e:
                     print(f"Could not load image {full_image_path}: {e}")
             else:
