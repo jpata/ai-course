@@ -193,6 +193,47 @@ plt.show()
 ```
 
 <!-- #region -->
+## Evaluate on Validation Set and Visualize Confusion Matrix
+
+Now that we have a fine-tuned model, let's evaluate its performance on the entire validation set. This will give us metrics like mAP (mean Average Precision) and also allow us to generate a confusion matrix to see how well the model distinguishes between different classes.
+
+The `val()` method will run prediction on all images in the validation set defined in `ena24_yolo_dataset.yaml`.
+<!-- #endregion -->
+
+```python
+# Path to the directory where training runs are saved
+train_dir = 'runs/detect'
+
+# Find the latest training directory
+latest_train_run = max(os.listdir(train_dir), key=lambda d: os.path.getmtime(os.path.join(train_dir, d)))
+best_model_path = os.path.join(train_dir, latest_train_run, 'weights/best.pt')
+
+print(f"Loading fine-tuned model from: {best_model_path}")
+
+# Load the fine-tuned model
+model_finetuned = YOLO(best_model_path)
+
+# Run validation on the full validation set
+metrics = model_finetuned.val()
+
+# The confusion matrix is saved by the val command. Let's display it.
+confusion_matrix_path = os.path.join(metrics.save_dir, 'confusion_matrix.png')
+
+# Check if the confusion matrix image exists
+if os.path.exists(confusion_matrix_path):
+    print(f"Displaying confusion matrix from: {confusion_matrix_path}")
+    # Display the confusion matrix
+    img = Image.open(confusion_matrix_path)
+    plt.figure(figsize=(12, 12))
+    plt.imshow(img)
+    plt.axis('off')
+    plt.title('Confusion Matrix')
+    plt.show()
+else:
+    print(f"Confusion matrix not found at: {confusion_matrix_path}")
+```
+
+<!-- #region -->
 ## YOLO Network Architecture Analysis
 
 To understand how the YOLO model turns image features into predictions, we can inspect its architecture. The model is generally composed of three main parts: the **Backbone**, the **Neck**, and the **Head**.

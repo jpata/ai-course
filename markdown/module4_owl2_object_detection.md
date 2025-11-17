@@ -34,6 +34,7 @@ from PIL import Image, ImageDraw
 from IPython.display import display,HTML
 import matplotlib.pyplot as plt
 import requests
+import tqdm
 ```
 
 Next, we load the `imageomics/IDLE-OO-Camera-Traps` dataset. We'll just take one example from the training split.
@@ -252,17 +253,24 @@ print(f"Saved {len(class_names)} class names to {os.path.join(labels_base_dir, '
 NUM_IMAGES_LABEL=500
 sample_images = ena24_df.sample(NUM_IMAGES_LABEL, random_state=42) # Use a random state for reproducibility
 
-# Use a general prompt for object detection
-texts = [["a photo of an animal", "a photo of a bird", "animal", "bird"]]
+# Initialize accuracy tracker
+accuracy_tracker = {name: {'detected': 0, 'missed': 0, 'total': 0} for name in sorted(sample_images['common_name'].unique())}
 
-for index, row in sample_images.iterrows():
+# Use a general prompt for object detection
+texts = [["a photo of an animal", "a photo of a bird", "a photo of a dog"]]
+
+index_img = 0
+for index, row in tqdm.tqdm(sample_images.iterrows()):
     image_relative_path = row['filepath']
     full_image_path = os.path.join(base_data_path, 'data/test/', image_relative_path)
+    common_name = row['common_name']
     
     if os.path.exists(full_image_path):
         try:
-            print(f"Processing image: {full_image_path}")
+            # print(f"Processing image: {full_image_path}")
             image = Image.open(full_image_path).convert("RGB")
+            
+            accuracy_tracker[common_name]['total'] += 1
             
             # Prepare inputs for OWL2 model
             inputs = processor(text=texts, images=image, return_tensors="pt").to(device)
@@ -280,12 +288,13 @@ for index, row in sample_images.iterrows():
 
             # If any objects are detected, process the highest-confidence one
             if len(scores) > 0:
+                accuracy_tracker[common_name]['detected'] += 1
+                
                 # Find the detection with the highest score
                 best_score_index = scores.argmax()
                 best_box = boxes[best_score_index]
                 
                 # Get the ground truth class ID from the CSV
-                common_name = row['common_name']
                 class_id = class_map[common_name]
 
                 # Convert bounding box to YOLO format (normalized)
@@ -311,7 +320,7 @@ for index, row in sample_images.iterrows():
                 with open(label_full_path, 'w') as f:
                     f.write(f"{class_id} {norm_x_center:.6f} {norm_y_center:.6f} {norm_width:.6f} {norm_height:.6f}\n")
                 
-                print(f"Saved YOLO label for '{common_name}' to {label_full_path}")
+                # print(f"Saved YOLO label for '{common_name}' to {label_full_path}")
 
                 # Define paths for YOLO training data
                 yolo_train_images_dir = os.path.join(labels_base_dir, 'images')
@@ -323,31 +332,46 @@ for index, row in sample_images.iterrows():
                 image_name = os.path.basename(full_image_path)
                 destination_image_path = os.path.join(yolo_train_images_dir, image_name)
                 shutil.copyfile(full_image_path, destination_image_path)
-                print(f"Copied image to {destination_image_path}")
+                # print(f"Copied image to {destination_image_path}")
 
                 # Copy label file to YOLO training labels directory
                 label_name = os.path.basename(label_full_path)
                 destination_label_path = os.path.join(yolo_train_labels_dir, label_name)
                 shutil.copyfile(label_full_path, destination_label_path)
-                print(f"Copied label to {destination_label_path}")
+                # print(f"Copied label to {destination_label_path}")
+            else:
+                accuracy_tracker[common_name]['missed'] += 1
+                # print(f"No animal detected in image for '{common_name}'")
 
             # Visualize the detections on the image for verification
-            image_with_boxes = image.copy()
-            draw = ImageDraw.Draw(image_with_boxes)
+            if index_img < 10:
+                image_with_boxes = image.copy()
+                draw = ImageDraw.Draw(image_with_boxes)
 
-            for box, score, label in zip(boxes, scores, labels):
-                box = [round(i, 2) for i in box.tolist()]
-                detected_text = texts[0][label.item()]
-                print(
-                    f"Detected '{detected_text}' with confidence {round(score.item(), 3)} at location {box}"
-                )
-                draw.rectangle(box, outline="red", width=3)
-                draw.text((box[0], box[1]), f"{detected_text} {round(score.item(), 3)}", fill="red")
+                for box, score, label in zip(boxes, scores, labels):
+                    box = [round(i, 2) for i in box.tolist()]
+                    detected_text = texts[0][label.item()]
+                    # print(
+                    #     f"Detected '{detected_text}' with confidence {round(score.item(), 3)} at location {box}"
+                    # )
+                    draw.rectangle(box, outline="red", width=3)
+                    draw.text((box[0], box[1]), f"{detected_text} {round(score.item(), 3)}", fill="red")
 
-            display(image_with_boxes)
+                display(image_with_boxes)
 
         except Exception as e:
             print(f"Could not process image {full_image_path}: {e}")
     else:
         print(f"Image file not found: {full_image_path}")
+    index_img += 1
+
+# After the loop, print the accuracy summary
+print("\n--- OWL2 Detection Accuracy Summary ---")
+for common_name, stats in accuracy_tracker.items():
+    total = stats['total']
+    if total > 0:
+        detected_fraction = stats['detected'] / total
+        missed_fraction = stats['missed'] / total
+        print(f"Class: {common_name}, total: {total}, detected: {stats['detected']} ({detected_fraction:.2%}), missed: {stats['missed']} ({missed_fraction:.2%})")
+print("-------------------------------------\n")
 ```
