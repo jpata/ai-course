@@ -216,7 +216,7 @@ plt.show()
 
 ## Automatic data labelling
 
-Here we will loop over images from the ENA24 dataset and apply the "a photo of an animal" prompt to automatically label them.
+Here we will loop over images from the ENA24 dataset and apply prompts to automatically label them.
 
 ```python
 import pandas as pd
@@ -364,7 +364,10 @@ for index, row in tqdm.tqdm(sample_images.iterrows()):
     else:
         print(f"Image file not found: {full_image_path}")
     index_img += 1
+```
 
+## Automatic Labelling Accuracy
+```python
 # After the loop, print the accuracy summary
 print("\n--- OWL2 Detection Accuracy Summary ---")
 for common_name, stats in accuracy_tracker.items():

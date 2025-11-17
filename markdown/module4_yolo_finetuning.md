@@ -34,6 +34,9 @@ from ultralytics import YOLO
 from PIL import Image
 from IPython.display import display
 import pandas as pd
+import numpy as np
+import seaborn as sns
+import tqdm
 
 import matplotlib
 %matplotlib inline
@@ -114,33 +117,160 @@ with open('ena24_yolo_dataset.yaml', 'r') as f:
 ```
 
 <!-- #region -->
-## Evaluate Pre-trained Model on Validation Set
+## Custom Evaluation of Pre-trained Model
 
-Before fine-tuning, let's evaluate the performance of the pre-trained `yolov8n.pt` model on our validation set. This will give us a baseline to compare against the fine-tuned model. We will generate a confusion matrix to see how well the base model performs on our custom classes.
+Before fine-tuning, let's evaluate the performance of the original pre-trained `yolov8n.pt` model on our validation set. This will show us which of the original COCO classes the model predicts for our custom-labeled objects. We will generate a custom confusion matrix where the 'True' labels are our `ena24` classes and the 'Predicted' labels are the original COCO classes.
+
+This approach allows us to see how the general-purpose COCO model interprets our specific dataset without any modification, providing a true baseline of its out-of-the-box performance.
 <!-- #endregion -->
 
 ```python
-# Load a pretrained YOLO model
-pretrained_model = YOLO('yolov8n.pt')
+# --- Custom Evaluation of Pre-trained Model ---
+# 1. Load original model and get COCO class names
+print("Loading original yolov8n.pt model...")
+original_model = YOLO('yolov8n.pt')
+coco_names = original_model.names
+print(f"Loaded model with {len(coco_names)} COCO classes.")
 
-# Run validation on the full validation set using the pre-trained model
-pretrain_metrics = pretrained_model.val(data='ena24_yolo_dataset.yaml')
+# 2. Get custom class names from our dataset yaml
+with open('ena24_yolo_dataset.yaml', 'r') as f:
+    dataset_yaml = yaml.safe_load(f)
+custom_names = dataset_yaml['names']
+custom_names_list = [custom_names[i] for i in sorted(custom_names.keys())]
+print(f"Loaded {len(custom_names_list)} custom classes for ENA24 dataset.")
 
-# The confusion matrix is saved by the val command. Let's display it.
-pretrain_confusion_matrix_path = os.path.join(pretrain_metrics.save_dir, 'confusion_matrix.png')
+# Add a "Background" class for false positives (predictions with no matching ground truth)
+custom_names_list_with_bg = custom_names_list + ['Background']
+background_class_index = len(custom_names_list)
 
-# Check if the confusion matrix image exists
-if os.path.exists(pretrain_confusion_matrix_path):
-    print(f"Displaying confusion matrix from: {pretrain_confusion_matrix_path}")
-    # Display the confusion matrix
-    img = Image.open(pretrain_confusion_matrix_path)
-    plt.figure(figsize=(12, 12))
-    plt.imshow(img)
-    plt.axis('off')
-    plt.title('Pre-trained Model Confusion Matrix')
+# 3. Get validation image paths
+with open(val_file_path, 'r') as f:
+    val_images = [line.strip() for line in f.readlines()]
+print(f"Found {len(val_images)} validation images for evaluation.")
+
+# Function to calculate IoU (Intersection over Union)
+def calculate_iou(box1, box2):
+    # box format: [x1, y1, x2, y2]
+    x1_inter = max(box1[0], box2[0])
+    y1_inter = max(box1[1], box2[1])
+    x2_inter = min(box1[2], box2[2])
+    y2_inter = min(box1[3], box2[3])
+
+    inter_area = max(0, x2_inter - x1_inter) * max(0, y2_inter - y1_inter)
+    if inter_area == 0:
+        return 0
+
+    box1_area = (box1[2] - box1[0]) * (box1[3] - box1[1])
+    box2_area = (box2[2] - box2[0]) * (box2[3] - box2[1])
+    
+    union_area = box1_area + box2_area - inter_area
+    
+    return inter_area / union_area if union_area > 0 else 0
+
+# Store true and predicted class pairs
+true_pred_pairs = []
+iou_threshold = 0.45 # IoU threshold for a match
+
+# 4. Process each validation image
+print(f"Processing {len(val_images)} images to create confusion matrix...")
+for image_path in tqdm.tqdm(val_images):
+    # Get ground truth labels
+    relative_image_path = os.path.relpath(image_path, images_dir)
+    label_path = os.path.join(labels_dir, os.path.splitext(relative_image_path)[0] + '.txt')
+    
+    gt_boxes = []
+    gt_classes = []
+    if os.path.exists(label_path):
+        with open(label_path, 'r') as f:
+            for line in f.readlines():
+                parts = line.strip().split()
+                class_id = int(parts[0])
+                cx, cy, w, h = map(float, parts[1:])
+                gt_classes.append(class_id)
+                x1 = cx - w / 2
+                y1 = cy - h / 2
+                x2 = cx + w / 2
+                y2 = cy + h / 2
+                gt_boxes.append([x1, y1, x2, y2])
+
+    # Run inference with the original model
+    results = original_model(image_path, verbose=False)
+    pred_boxes = results[0].boxes.xyxyn.cpu().numpy() # Normalized xyxy
+    pred_classes = results[0].boxes.cls.cpu().numpy().astype(int)
+    
+    if len(gt_boxes) == 0 and len(pred_boxes) == 0:
+        continue
+
+    gt_used = np.zeros(len(gt_boxes), dtype=bool)
+    pred_used = np.zeros(len(pred_boxes), dtype=bool)
+
+    if len(pred_boxes) > 0 and len(gt_boxes) > 0:
+        iou_matrix = np.zeros((len(gt_boxes), len(pred_boxes)))
+        for i, gt_box in enumerate(gt_boxes):
+            for j, pred_box in enumerate(pred_boxes):
+                iou_matrix[i, j] = calculate_iou(gt_box, pred_box)
+        
+        matches = []
+        for i in range(len(gt_boxes)):
+            for j in range(len(pred_boxes)):
+                if iou_matrix[i, j] > iou_threshold:
+                    matches.append((iou_matrix[i, j], i, j))
+        
+        matches.sort(key=lambda x: x[0], reverse=True)
+
+        for iou, gt_idx, pred_idx in matches:
+            if not gt_used[gt_idx] and not pred_used[pred_idx]:
+                true_class = gt_classes[gt_idx]
+                pred_class = pred_classes[pred_idx]
+                true_pred_pairs.append((true_class, pred_class))
+                gt_used[gt_idx] = True
+                pred_used[pred_idx] = True
+
+    # Handle unmatched predictions (False Positives)
+    for j, used in enumerate(pred_used):
+        if not used:
+            true_class = background_class_index # 'Background'
+            pred_class = pred_classes[j]
+            true_pred_pairs.append((true_class, pred_class))
+
+# 5. Build and Visualize Confusion Matrix
+print("Building and visualizing confusion matrix...")
+true_axis_labels = custom_names_list_with_bg
+pred_axis_labels = [coco_names[i] for i in sorted(coco_names.keys())]
+
+true_map = {name: i for i, name in enumerate(true_axis_labels)}
+pred_map = {name: i for i, name in enumerate(pred_axis_labels)}
+
+cm = np.zeros((len(true_axis_labels), len(pred_axis_labels)), dtype=int)
+
+for true_idx, pred_idx in true_pred_pairs:
+    true_name = custom_names_list_with_bg[true_idx]
+    pred_name = coco_names.get(pred_idx, "Unknown")
+    if pred_name in pred_map:
+        cm[true_map[true_name], pred_map[pred_name]] += 1
+
+row_sums = cm.sum(axis=1)
+col_sums = cm.sum(axis=0)
+
+non_empty_rows = np.where(row_sums > 0)[0]
+non_empty_cols = np.where(col_sums > 0)[0]
+
+if len(non_empty_rows) > 0 and len(non_empty_cols) > 0:
+    filtered_cm = cm[non_empty_rows][:, non_empty_cols]
+    filtered_y_labels = [true_axis_labels[i] for i in non_empty_rows]
+    filtered_x_labels = [pred_axis_labels[i] for i in non_empty_cols]
+
+    cm_df = pd.DataFrame(filtered_cm, index=filtered_y_labels, columns=filtered_x_labels)
+
+    plt.figure(figsize=(max(12, len(filtered_x_labels)), max(10, len(filtered_y_labels))))
+    sns.heatmap(cm_df, annot=True, fmt='d', cmap='Blues')
+    plt.title('Pre-trained Model Custom Confusion Matrix')
+    plt.ylabel(f'True Labels (ENA24)')
+    plt.xlabel(f'Predicted Labels (COCO)')
+    plt.tight_layout()
     plt.show()
 else:
-    print(f"Confusion matrix not found at: {pretrain_confusion_matrix_path}")
+    print("Confusion matrix is empty after filtering. No common detections were found.")
 ```
 
 <!-- #region -->

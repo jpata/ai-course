@@ -9,3 +9,4 @@ jupyter-server
 ultralytics
 scikit-learn
 papermill
+seaborn
