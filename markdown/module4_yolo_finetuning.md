@@ -56,7 +56,7 @@ import glob
 from sklearn.model_selection import train_test_split
 
 # --- Find all labeled images and create train.txt and val.txt ---
-base_path = '/home/joosep/ai-course/data/IDLE-OO-Camera-Traps_yolo'
+base_path = '../data/IDLE-OO-Camera-Traps_yolo'
 labels_dir = os.path.join(base_path, 'labels')
 images_dir = os.path.join(base_path, 'images')
 train_file_path = os.path.join(base_path, 'train.txt')
@@ -81,17 +81,17 @@ if not image_files:
 # Split the data into training and validation sets (80% train, 20% val)
 train_images, val_images = train_test_split(image_files, test_size=0.2, random_state=42)
 
-# Write the absolute paths of labeled images to train.txt
+# Write the relative paths of labeled images to train.txt
 with open(train_file_path, 'w') as f:
     for image_path in train_images:
-        f.write(f"{image_path}\n")
+        f.write(f"{os.path.relpath(image_path, base_path)}\n")
 print(f"Found {len(image_files)} labeled images.")
 print(f"Created '{train_file_path}' with {len(train_images)} images for training.")
 
-# Write the absolute paths of labeled images to val.txt
+# Write the relative paths of labeled images to val.txt
 with open(val_file_path, 'w') as f:
     for image_path in val_images:
-        f.write(f"{image_path}\n")
+        f.write(f"{os.path.relpath(image_path, base_path)}\n")
 print(f"Created '{val_file_path}' with {len(val_images)} images for validation.")
 
 
@@ -128,7 +128,7 @@ This approach allows us to see how the general-purpose COCO model interprets our
 # --- Custom Evaluation of Pre-trained Model ---
 # 1. Load original model and get COCO class names
 print("Loading original yolov8n.pt model...")
-original_model = YOLO('yolov8n.pt')
+original_model = YOLO('../yolov8n.pt')
 coco_names = original_model.names
 print(f"Loaded model with {len(coco_names)} COCO classes.")
 
@@ -173,7 +173,8 @@ iou_threshold = 0.45 # IoU threshold for a match
 
 # 4. Process each validation image
 print(f"Processing {len(val_images)} images to create confusion matrix...")
-for image_path in tqdm.tqdm(val_images):
+for image_path_relative in tqdm.tqdm(val_images):
+    image_path = os.path.join(base_path, image_path_relative)
     # Get ground truth labels
     relative_image_path = os.path.relpath(image_path, images_dir)
     label_path = os.path.join(labels_dir, os.path.splitext(relative_image_path)[0] + '.txt')
@@ -283,7 +284,7 @@ If the `ena24_yolo_dataset.yaml` was created successfully, we can proceed with t
 
 ```python
 # Load a pretrained YOLO model
-model = YOLO('yolov8n.pt')
+model = YOLO('../yolov8n.pt')
 
 # Train the model
 results = model.train(data='ena24_yolo_dataset.yaml', epochs=100, imgsz=640, batch=4)
@@ -300,7 +301,7 @@ We will select one of the 10 sample images that were labeled.
 
 ```python
 # Path to the directory where training runs are saved
-train_dir = 'runs/detect'
+train_dir = '../runs/detect'
 
 # Find the latest training directory
 latest_train_run = max(os.listdir(train_dir), key=lambda d: os.path.getmtime(os.path.join(train_dir, d)))
@@ -326,7 +327,8 @@ fig, axs = plt.subplots(3, 3, figsize=(15, 15))
 axs = axs.flatten()
 
 # Run inference and display results
-for i, image_path in enumerate(display_images):
+for i, image_path_relative in enumerate(display_images):
+    image_path = os.path.join(base_path, image_path_relative)
     print(f"Running inference on: {image_path}")
     results = model_finetuned(image_path)
     
@@ -357,7 +359,7 @@ The `val()` method will run prediction on all images in the validation set defin
 
 ```python
 # Path to the directory where training runs are saved
-train_dir = 'runs/detect'
+train_dir = '../runs/detect'
 
 # Find the latest training directory
 latest_train_run = max(os.listdir(train_dir), key=lambda d: os.path.getmtime(os.path.join(train_dir, d)))
@@ -402,7 +404,7 @@ Let's print the model structure to see the layers. We will use the pretrained `y
 
 ```python
 # Load a pretrained YOLO model to inspect its architecture
-model_to_inspect = YOLO('yolov8n.pt')
+model_to_inspect = YOLO('../yolov8n.pt')
 print(model_to_inspect.model)
 ```
 
@@ -434,6 +436,8 @@ This process allows the model to efficiently predict multiple objects of various
 
 ```python
 # Find the latest training directory
+train_dir = '../runs/detect'
+latest_train_run = max(os.listdir(train_dir), key=lambda d: os.path.getmtime(os.path.join(train_dir, d)))
 results_csv_path = os.path.join(train_dir, latest_train_run, 'results.csv')
 
 print(f"Loading training results from: {results_csv_path}")

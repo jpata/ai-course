@@ -43,13 +43,13 @@ First, we'll use a pretrained YOLOv8 model to perform object detection.
 
 ```python
 # Load a pretrained YOLO model
-model_yolo = YOLO('yolov8n.pt')
+model_yolo = YOLO('../yolov8n.pt')
 ```
 
 Next, we load the `imageomics/IDLE-OO-Camera-Traps` dataset. We'll just take one example from the training split.
 
 ```python label="load-image-cell"
-dataset = load_dataset(path="./data/IDLE-OO-Camera-Traps", split="test")
+dataset = load_dataset(path="../data/IDLE-OO-Camera-Traps", split="test")
 iterator = iter(dataset)
 sample = next(iterator)
 image = sample["image"]
@@ -177,7 +177,7 @@ from PIL import Image
 from IPython.display import display, HTML
 
 # Define the base path to the locally checked out dataset
-base_data_path = 'data/IDLE-OO-Camera-Traps/'
+base_data_path = '../data/IDLE-OO-Camera-Traps/'
 ena24_csv_path = os.path.join(base_data_path, 'ENA24-balanced.csv')
 
 # Load the ENA24-balanced.csv file

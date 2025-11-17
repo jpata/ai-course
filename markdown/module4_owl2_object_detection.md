@@ -40,7 +40,7 @@ import tqdm
 Next, we load the `imageomics/IDLE-OO-Camera-Traps` dataset. We'll just take one example from the training split.
 
 ```python label="load-image-cell"
-dataset = load_dataset(path="./data/IDLE-OO-Camera-Traps", split="test")
+dataset = load_dataset(path="../data/IDLE-OO-Camera-Traps", split="test")
 iterator = iter(dataset)
 sample = next(iterator)
 image = sample["image"]
@@ -227,8 +227,8 @@ device = torch.device("cuda")
 model.to(device)
 
 # Define the base path to the locally checked out dataset
-base_data_path = 'data/IDLE-OO-Camera-Traps/'
-base_data_path_yolo = 'data/IDLE-OO-Camera-Traps_yolo'
+base_data_path = '../data/IDLE-OO-Camera-Traps/'
+base_data_path_yolo = '../data/IDLE-OO-Camera-Traps_yolo'
 ena24_csv_path = os.path.join(base_data_path, 'ENA24-balanced.csv')
 
 # Load the ENA24-balanced.csv file
