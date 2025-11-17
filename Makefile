@@ -25,4 +25,4 @@ notebooks_executed/module4_yolo_finetuning.ipynb: notebooks_executed/module4_owl
 
 notebooks_executed/%.ipynb: notebooks/%.ipynb
 	mkdir -p notebooks_executed
-	papermill --log-output --cwd `pwd` --kernel python3 $< $@
+	papermill --log-output --cwd `pwd`/notebooks_executed --kernel python3 $< $@

@@ -56,7 +56,7 @@ import glob
 from sklearn.model_selection import train_test_split
 
 # --- Find all labeled images and create train.txt and val.txt ---
-base_path = '../data/IDLE-OO-Camera-Traps_yolo'
+base_path = os.path.abspath('../data/IDLE-OO-Camera-Traps_yolo')
 labels_dir = os.path.join(base_path, 'labels')
 images_dir = os.path.join(base_path, 'images')
 train_file_path = os.path.join(base_path, 'train.txt')
@@ -68,10 +68,7 @@ label_files = [f for f in glob.glob(os.path.join(labels_dir, '**/*.txt'), recurs
 
 for label_file in label_files:
     # Derive the corresponding image path, assuming .png extension
-    relative_label_path = os.path.relpath(label_file, labels_dir)
-    image_name = os.path.splitext(relative_label_path)[0] + '.png'
-    image_path = os.path.join(images_dir, image_name)
-    
+    image_path = label_file.replace("/labels/", "/images/").replace(".txt", ".png")
     if os.path.exists(image_path):
         image_files.append(image_path)
 
@@ -84,22 +81,22 @@ train_images, val_images = train_test_split(image_files, test_size=0.2, random_s
 # Write the relative paths of labeled images to train.txt
 with open(train_file_path, 'w') as f:
     for image_path in train_images:
-        f.write(f"{os.path.relpath(image_path, base_path)}\n")
+        f.write(f"{image_path}\n")
 print(f"Found {len(image_files)} labeled images.")
 print(f"Created '{train_file_path}' with {len(train_images)} images for training.")
 
 # Write the relative paths of labeled images to val.txt
 with open(val_file_path, 'w') as f:
     for image_path in val_images:
-        f.write(f"{os.path.relpath(image_path, base_path)}\n")
+        f.write(f"{image_path}\n")
 print(f"Created '{val_file_path}' with {len(val_images)} images for validation.")
 
 
 # --- Create dataset.yaml ---
 dataset_config = {
-    'path': base_path,
-    'train': train_file_path,  # Path to the file with image paths
-    'val': val_file_path,    # Path to the file with validation image paths
+    'path': os.path.abspath(base_path), # Use absolute path
+    'train': 'train.txt',
+    'val': 'val.txt',
     'names': {}
 }
 classes_path = os.path.join(os.path.dirname(labels_dir), 'classes.txt')
@@ -287,7 +284,7 @@ If the `ena24_yolo_dataset.yaml` was created successfully, we can proceed with t
 model = YOLO('../yolov8n.pt')
 
 # Train the model
-results = model.train(data='ena24_yolo_dataset.yaml', epochs=100, imgsz=640, batch=4)
+results = model.train(data='ena24_yolo_dataset.yaml', epochs=10, imgsz=640, batch=4)
 ```
 
 <!-- #region -->
@@ -301,7 +298,7 @@ We will select one of the 10 sample images that were labeled.
 
 ```python
 # Path to the directory where training runs are saved
-train_dir = '../runs/detect'
+train_dir = 'runs/detect'
 
 # Find the latest training directory
 latest_train_run = max(os.listdir(train_dir), key=lambda d: os.path.getmtime(os.path.join(train_dir, d)))
@@ -350,6 +347,28 @@ plt.show()
 ```
 
 <!-- #region -->
+## Visualize Training and Validation Loss
+<!-- #endregion -->
+
+```python
+# Find the latest training directory
+train_dir = 'runs/detect'
+latest_train_run = max(os.listdir(train_dir), key=lambda d: os.path.getmtime(os.path.join(train_dir, d)))
+results_csv_path = os.path.join(train_dir, latest_train_run, 'results.csv')
+
+print(f"Loading training results from: {results_csv_path}")
+results_df = pd.read_csv(results_csv_path)
+
+fig = plt.figure(figsize=(12, 6))
+plt.plot(results_df['epoch'], results_df['train/box_loss']+results_df['train/cls_loss']+results_df['train/dfl_loss'], label='Train Loss')
+plt.plot(results_df['epoch'], results_df['val/box_loss']+results_df['val/cls_loss']+results_df['val/dfl_loss'], label='Val Loss')
+plt.xlabel('Epoch')
+plt.ylabel('Loss')
+plt.title('Training and Validation Loss Curves')
+plt.legend()
+```
+
+<!-- #region -->
 ## Evaluate on Validation Set and Visualize Confusion Matrix
 
 Now that we have a fine-tuned model, let's evaluate its performance on the entire validation set. This will give us metrics like mAP (mean Average Precision) and also allow us to generate a confusion matrix to see how well the model distinguishes between different classes.
@@ -359,7 +378,7 @@ The `val()` method will run prediction on all images in the validation set defin
 
 ```python
 # Path to the directory where training runs are saved
-train_dir = '../runs/detect'
+train_dir = 'runs/detect'
 
 # Find the latest training directory
 latest_train_run = max(os.listdir(train_dir), key=lambda d: os.path.getmtime(os.path.join(train_dir, d)))
@@ -388,66 +407,4 @@ if os.path.exists(confusion_matrix_path):
     plt.show()
 else:
     print(f"Confusion matrix not found at: {confusion_matrix_path}")
-```
-
-<!-- #region -->
-## YOLO Network Architecture Analysis
-
-To understand how the YOLO model turns image features into predictions, we can inspect its architecture. The model is generally composed of three main parts: the **Backbone**, the **Neck**, and the **Head**.
-
-*   **Backbone**: This is a deep convolutional neural network that extracts features from the input image at various scales. YOLOv8 uses a modified CSPDarknet53 architecture.
-*   **Neck**: This part connects the backbone to the head. It takes feature maps from different stages of the backbone and combines them to create richer feature pyramids. This allows the model to detect objects of different sizes more effectively. YOLOv8 uses a Path Aggregation Network (PANet) for this.
-*   **Head (Detection)**: This is the final part of the network that generates the output predictions. It takes the feature maps from the neck and produces bounding boxes, class probabilities, and objectness scores.
-
-Let's print the model structure to see the layers. We will use the pretrained `yolov8n.pt` model for this analysis.
-<!-- #endregion -->
-
-```python
-# Load a pretrained YOLO model to inspect its architecture
-model_to_inspect = YOLO('../yolov8n.pt')
-print(model_to_inspect.model)
-```
-
-<!-- #region -->
-### From Features to Predictions
-
-The key to understanding the prediction process lies in the `Detect` module at the end of the network structure (the last layer in the printed output).
-
-1.  **Input Feature Maps**: The `Detect` head receives feature maps from the neck at three different scales (e.g., 80x80, 40x40, 20x20 for a 640x640 input). Each scale is responsible for detecting objects of a corresponding size (small, medium, large).
-
-2.  **Convolutional Prediction**: For each feature map, the `Detect` head applies a set of 1x1 convolutional layers. These convolutions transform the feature map's channels into a format that represents the predictions. For each location (or "patch") in the feature map, the model predicts:
-    *   **Bounding Box Coordinates (4 values)**: These are typically `(x_center, y_center, width, height)`, which are regressed relative to the grid cell's location.
-    *   **Class Probabilities (C values)**: A probability for each of the `C` classes the model was trained on.
-    *   **Objectness Score (1 value)**: This is often implicitly part of the class prediction or a separate score indicating the confidence that an object is present in the bounding box. In YOLOv8, the box and class predictions are decoupled.
-
-3.  **Output Tensor**: The output of the `Detect` head is a set of tensors. For a single image, the predictions from all scales are concatenated. The final output tensor has a shape like `(batch_size, num_classes + 4, num_predictions)`, where `num_predictions` is the total number of prediction anchors across all scales.
-
-4.  **Decoding the Output**: This raw tensor output is then post-processed:
-    *   The bounding box values are scaled to the original image dimensions.
-    *   The class scores are passed through a softmax or sigmoid function to get final probabilities.
-    *   Non-Maximum Suppression (NMS) is applied to filter out overlapping bounding boxes for the same object, keeping only the one with the highest confidence score.
-
-This process allows the model to efficiently predict multiple objects of various sizes and classes in a single forward pass.
-<!-- #endregion -->
-
-<!-- #region -->
-## Visualize Training and Validation Loss
-<!-- #endregion -->
-
-```python
-# Find the latest training directory
-train_dir = '../runs/detect'
-latest_train_run = max(os.listdir(train_dir), key=lambda d: os.path.getmtime(os.path.join(train_dir, d)))
-results_csv_path = os.path.join(train_dir, latest_train_run, 'results.csv')
-
-print(f"Loading training results from: {results_csv_path}")
-results_df = pd.read_csv(results_csv_path)
-
-fig = plt.figure(figsize=(12, 6))
-plt.plot(results_df['epoch'], results_df['train/box_loss']+results_df['train/cls_loss']+results_df['train/dfl_loss'], label='Train Loss')
-plt.plot(results_df['epoch'], results_df['val/box_loss']+results_df['val/cls_loss']+results_df['val/dfl_loss'], label='Val Loss')
-plt.xlabel('Epoch')
-plt.ylabel('Loss')
-plt.title('Training and Validation Loss Curves')
-plt.legend()
 ```

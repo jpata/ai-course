@@ -72,6 +72,47 @@ for conf in confidence_thresholds:
     display(im)
 ```
 
+
+<!-- #region -->
+### YOLO Network Architecture Analysis
+
+To understand how the YOLO model turns image features into predictions, we can inspect its architecture. The model is generally composed of three main parts: the **Backbone**, the **Neck**, and the **Head**.
+
+*   **Backbone**: This is a deep convolutional neural network that extracts features from the input image at various scales. YOLOv8 uses a modified CSPDarknet53 architecture.
+*   **Neck**: This part connects the backbone to the head. It takes feature maps from different stages of the backbone and combines them to create richer feature pyramids. This allows the model to detect objects of different sizes more effectively. YOLOv8 uses a Path Aggregation Network (PANet) for this.
+*   **Head (Detection)**: This is the final part of the network that generates the output predictions. It takes the feature maps from the neck and produces bounding boxes, class probabilities, and objectness scores.
+
+Let's print the model structure to see the layers. We will use the pretrained `yolov8n.pt` model for this analysis.
+<!-- #endregion -->
+
+```python
+# Load a pretrained YOLO model to inspect its architecture
+model_to_inspect = YOLO('../yolov8n.pt')
+print(model_to_inspect.model)
+```
+
+<!-- #region -->
+### From Features to Predictions
+
+The key to understanding the prediction process lies in the `Detect` module at the end of the network structure (the last layer in the printed output).
+
+1.  **Input Feature Maps**: The `Detect` head receives feature maps from the neck at three different scales (e.g., 80x80, 40x40, 20x20 for a 640x640 input). Each scale is responsible for detecting objects of a corresponding size (small, medium, large).
+
+2.  **Convolutional Prediction**: For each feature map, the `Detect` head applies a set of 1x1 convolutional layers. These convolutions transform the feature map's channels into a format that represents the predictions. For each location (or "patch") in the feature map, the model predicts:
+    *   **Bounding Box Coordinates (4 values)**: These are typically `(x_center, y_center, width, height)`, which are regressed relative to the grid cell's location.
+    *   **Class Probabilities (C values)**: A probability for each of the `C` classes the model was trained on.
+    *   **Objectness Score (1 value)**: This is often implicitly part of the class prediction or a separate score indicating the confidence that an object is present in the bounding box. In YOLOv8, the box and class predictions are decoupled.
+
+3.  **Output Tensor**: The output of the `Detect` head is a set of tensors. For a single image, the predictions from all scales are concatenated. The final output tensor has a shape like `(batch_size, num_classes + 4, num_predictions)`, where `num_predictions` is the total number of prediction anchors across all scales.
+
+4.  **Decoding the Output**: This raw tensor output is then post-processed:
+    *   The bounding box values are scaled to the original image dimensions.
+    *   The class scores are passed through a softmax or sigmoid function to get final probabilities.
+    *   Non-Maximum Suppression (NMS) is applied to filter out overlapping bounding boxes for the same object, keeping only the one with the highest confidence score.
+
+This process allows the model to efficiently predict multiple objects of various sizes and classes in a single forward pass.
+<!-- #endregion -->
+
 ### YOLO Intermediate Layer Visualization
 
 Now, let's visualize the intermediate outputs of the YOLO model. We will add hooks to the model layers to capture the feature maps and then plot them.
