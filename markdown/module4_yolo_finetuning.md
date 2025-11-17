@@ -100,22 +100,47 @@ dataset_config = {
     'names': {}
 }
 classes_path = os.path.join(os.path.dirname(labels_dir), 'classes.txt')
+with open(classes_path, 'r') as f:
+    classes = [line.strip() for line in f.readlines()]
+    dataset_config['names'] = {i: name for i, name in enumerate(classes)}
 
-try:
-    with open(classes_path, 'r') as f:
-        classes = [line.strip() for line in f.readlines()]
-        dataset_config['names'] = {i: name for i, name in enumerate(classes)}
+with open('ena24_yolo_dataset.yaml', 'w') as f:
+    yaml.dump(dataset_config, f)
 
-    with open('ena24_yolo_dataset.yaml', 'w') as f:
-        yaml.dump(dataset_config, f)
+print("\nena24_yolo_dataset.yaml created:")
+with open('ena24_yolo_dataset.yaml', 'r') as f:
+    print(f.read())
 
-    print("\nena24_yolo_dataset.yaml created:")
-    with open('ena24_yolo_dataset.yaml', 'r') as f:
-        print(f.read())
-except FileNotFoundError:
-    print(f"\nError: '{classes_path}' not found.")
-    raise Exception("Please run the 'Automatic data labelling' section of the 'module4_owl2_object_detection.md' notebook to generate labels and the classes.txt file.")
+```
 
+<!-- #region -->
+## Evaluate Pre-trained Model on Validation Set
+
+Before fine-tuning, let's evaluate the performance of the pre-trained `yolov8n.pt` model on our validation set. This will give us a baseline to compare against the fine-tuned model. We will generate a confusion matrix to see how well the base model performs on our custom classes.
+<!-- #endregion -->
+
+```python
+# Load a pretrained YOLO model
+pretrained_model = YOLO('yolov8n.pt')
+
+# Run validation on the full validation set using the pre-trained model
+pretrain_metrics = pretrained_model.val(data='ena24_yolo_dataset.yaml')
+
+# The confusion matrix is saved by the val command. Let's display it.
+pretrain_confusion_matrix_path = os.path.join(pretrain_metrics.save_dir, 'confusion_matrix.png')
+
+# Check if the confusion matrix image exists
+if os.path.exists(pretrain_confusion_matrix_path):
+    print(f"Displaying confusion matrix from: {pretrain_confusion_matrix_path}")
+    # Display the confusion matrix
+    img = Image.open(pretrain_confusion_matrix_path)
+    plt.figure(figsize=(12, 12))
+    plt.imshow(img)
+    plt.axis('off')
+    plt.title('Pre-trained Model Confusion Matrix')
+    plt.show()
+else:
+    print(f"Confusion matrix not found at: {pretrain_confusion_matrix_path}")
 ```
 
 <!-- #region -->
