@@ -347,81 +347,105 @@
                         This module focuses on Computer Vision (CV). You will learn how to
                         treat images as a rich source of research data, moving beyond
                         manual observation to automated, large-scale analysis. We will
-                        cover the core patterns for finding, classifying, and extracting
-                        data from images, from microscope slides to historical archives.
+                        cover an end-to-end workflow: from automatically labeling a dataset
+                        to training a custom object detection model and using it for segmentation.
                     </p>
                 </div>
                 
-                <h2>Core Patterns & Models</h2>
+                <h2>End-to-End Computer Vision Workflow</h2>
                 
                 <!-- Grid for Module Patterns -->
                 <div class="module-detail-grid">
 
-                    <!-- Pattern: Object Detection -->
+                    <!-- Part 1: Zero-Shot Detection & Auto-Labeling -->
                     <div class="module-card">
-                        <span class="module-number">Pattern</span>
-                        <h3>Object Detection ("Find and box it")</h3>
+                        <span class="module-number">Part 1</span>
+                        <h3>Zero-Shot Detection &amp; Auto-Labeling with OWL2</h3>
                         <p>
-                            This pattern is used to find and draw bounding boxes around
-                            specific instances of objects. It doesn't just say "there is a car,"
-                            it says "here is car 1, here is car 2," and provides the
-                            coordinates for each.
+                            We start with a powerful, general-purpose object detection model called <span class="model-name">OWL2</span>.
+                            Its key feature is "zero-shot" detection: you can provide it with text descriptions of objects to find (e.g., "a photo of a leopard") without having to train it on pre-labeled examples.
                         </p>
                         <h4>Key Research Applications:</h4>
                         <ul>
-                            <li><strong>Ecology:</strong> Automatically counting a specific species in camera trap footage.</li>
-                            <li><strong>Economics:</strong> Monitoring ports by counting ships or containers from satellite imagery.</li>
-                            <li><strong>Digital Humanities:</strong> Finding and cataloging specific objects (e.g., "hats") in archival photos.</li>
+                            <li><strong>Rapid Prototyping:</strong> Quickly test if objects of interest can be found in a new dataset.</li>
+                            <li><strong>Automatic Labeling:</strong> Use OWL2's predictions to automatically generate bounding boxes for a large number of images, creating a training dataset for a more specialized model.</li>
                         </ul>
-                        <h4>Concrete Open Source Model: <span class="model-name">YOLOv8</span></h4>
+                        <h4>Concrete Steps from the Notebook:</h4>
+                        <ul>
+                            <li>Load the ENA24 dataset of camera trap images.</li>
+                            <li>Use <span class="model-name">OWL2</span> with a general prompt like "a photo of an animal" to detect animals in the images.</li>
+                            <li>Convert the detected bounding boxes into the YOLO label format.</li>
+                        </ul>
                     </div>
 
-                    <!-- Pattern: Segmentation -->
+                    <!-- Part 2: Fine-Tuning a Specialized Detector -->
                     <div class="module-card">
-                        <span class="module-number">Pattern</span>
-                        <h3>Segmentation ("Pixel-level classification")</h3>
+                        <span class="module-number">Part 2</span>
+                        <h3>Fine-Tuning a YOLOv8 Model</h3>
                         <p>
-                            Segmentation is far more granular than detection. It classifies
-                            every single pixel in an image, allowing you to find the
-                            precise shape and boundaries of an object.
+                            While powerful, OWL2 can be slow. For large-scale analysis, we need a faster model. We use the dataset we automatically labeled in Part 1 to fine-tune a <span class="model-name">YOLOv8</span> model. Fine-tuning adapts a pre-trained model to a new, specific task.
                         </p>
                         <h4>Key Research Applications:</h4>
                         <ul>
-                            <li><strong>Computational Biology:</strong> Measuring tumor boundaries in medical MRIs or identifying individual cell nuclei.</li>
-                            <li><strong>Climate Science:</strong> Mapping land use (water vs. forest vs. urban) from satellite data.</li>
-                            <li><strong>Archaeology:</strong> Highlighting the precise outline of ancient structures or artifacts in ground-penetrating radar scans.</li>
+                            <li><strong>Domain Specialization:</strong> Create a model that is highly accurate for a specific set of objects (e.g., certain animal species, historical artifacts).</li>
+                            <li><strong>Efficient Processing:</strong> Build a model that is fast enough to process thousands or millions of images on standard hardware.</li>
                         </ul>
-                        <h4>Concrete Open Source Model: <span class="model-name">SAM (Segment Anything Model)</span></h4>
+                        <h4>Concrete Steps from the Notebook:</h4>
+                        <ul>
+                            <li>Create a `dataset.yaml` file to configure the training process for YOLO.</li>
+                            <li>Load a pre-trained <span class="model-name">YOLOv8n</span> model.</li>
+                            <li>Train the model on the auto-generated labels from OWL2, creating a new model specialized for the ENA24 dataset.</li>
+                            <li>Evaluate the model's performance using a confusion matrix and loss curves.</li>
+                        </ul>
                     </div>
 
-                    <!-- Pattern: OCR -->
+                    <!-- Part 3: Using the Fine-Tuned Model -->
                     <div class="module-card">
-                        <span class="module-number">Pattern</span>
-                        <h3>Optical Character Recognition (OCR)</h3>
+                        <span class="module-number">Part 3</span>
+                        <h3>Object Detection with the Fine-Tuned Model</h3>
                         <p>
-                            OCR models are specialized to find and transcribe text from
-                            within an image. Modern models can handle varied fonts,
-                            handwriting, and challenging layouts.
-                        </D>
+                            With our fine-tuned model, we now have an efficient and specialized tool for our research task. This model can rapidly detect the specific classes it was trained on (in this case, the various animals from the ENA24 dataset) across the entire dataset.
+                        </p>
                         <h4>Key Research Applications:</h4>
                         <ul>
-                            <li><strong>Digital Humanities:</strong> Digitizing entire archives of scanned newspapers, books, or manuscripts.</li>
-                            <li><strong>Social Sciences:</strong> Extracting data from thousands of scanned forms or surveys.</li>
-                            <li><strong>History:</strong> Transcribing text from archival photographs (e.g., shop signs, posters) to build a richer context.</li>
+                            <li><strong>Large-Scale Surveys:</strong> Automatically count and locate objects of interest across massive image collections.</li>
+                            <li><strong>Real-Time Analysis:</strong> Use the efficient model for applications that require immediate results, like video analysis.</li>
                         </ul>
-                        <h4>Concrete Open Source Model: <span class="model-name">Tesseract</span> / <span class="model-name">TrOCR</span></h4>
+                        <h4>Concrete Steps from the Notebook:</h4>
+                        <ul>
+                            <li>Load the `best.pt` weights from the YOLOv8 training process.</li>
+                            <li>Run inference on new images to get fast and accurate bounding boxes for the target classes.</li>
+                            <li>Visualize the results to confirm the model's effectiveness.</li>
+                        </ul>
                     </div>
+                    
+                    <!-- Part 4: Advanced Segmentation with SAM + YOLO -->
+                    <div class="module-card">
+                        <span class="module-number">Part 4</span>
+                        <h3>Promptable Segmentation with SAM + YOLO</h3>
+                        <p>
+                            Bounding boxes are good, but what if you need the exact outline of an object? We can combine our fine-tuned YOLO model with the <span class="model-name">Segment Anything Model (SAM)</span>. SAM can take prompts, like bounding boxes, and produce highly detailed segmentation masks.
+                        </p>
+                        <h4>Key Research Applications:</h4>
+                        <ul>
+                            <li><strong>Precise Measurement:</strong> Calculate the exact size, area, or shape of objects (e.g., tumor size in medical scans, leaf area in botanical studies).</li>
+                            <li><strong>Object Extraction:</strong> Isolate and extract objects from their background for further analysis or visualization.</li>
+                        </ul>
+                        <h4>Workflow:</h4>
+                        <ol>
+                            <li>Run the fine-tuned <span class="model-name">YOLOv8</span> model on an image to get bounding boxes.</li>
+                            <li>Pass the image and the bounding boxes as prompts to <span class="model-name">SAM</span>.</li>
+                            <li>SAM returns a precise pixel-level mask for each object within the boxes.</li>
+                        </ol>
+                    </div>
+
                 </div>
                 
                 <!-- Practical Task Section -->
                 <div class="task-section">
                     <h2>Module 4: Practical Task</h2>
                     <p>
-                        Download the pre-trained <span class="model-name">YOLOv8</span> model. Write a Python script
-                        using the `ultralytics` library to run the model on a sample
-                        image (e.g., a picture of a busy street or a research-specific
-                        image) and draw bounding boxes on the detected objects (people,
-                        cars, cells, etc.).
+                        This module's practical task is to follow the complete workflow demonstrated in the notebooks. You will start by using <span class="model-name">OWL2</span> to automatically label a sample of the ENA24 dataset. Then, you will use those labels to fine-tune a <span class="model-name">YOLOv8</span> model. Finally, you will use your new, specialized model to perform object detection on the remaining images.
                     </p>
                 </div>
 
