@@ -290,9 +290,39 @@ confusion_crosstab = pd.crosstab(df_cm['y_true'], df_cm['y_pred'], rownames=['Tr
 
 plt.figure(figsize=(18, 14))
 sns.heatmap(confusion_crosstab, annot=True, fmt='d', cmap='Blues')
-plt.title('Confusion Matrix: ENA24 True Class vs. YOLO Predicted Class')
-plt.xticks(rotation=45, ha='right')
-plt.yticks(rotation=0)
-plt.tight_layout()
-plt.show()
+
+
+# --- Display 1 image with YOLO detections from each unique "common_name" ---
+print("\nDisplaying 1 image with YOLO detections from each unique 'common_name'...")
+unique_common_names = ena24_df['common_name'].unique()
+
+for name in unique_common_names:
+    # Get 1 image for the current common name
+    sample_images = ena24_df[ena24_df['common_name'] == name].head(1)
+    
+    if not sample_images.empty:
+        print(f"\n--- Common Name: {name} ---")
+        for index, row in sample_images.iterrows():
+            image_relative_path = row['filepath']
+            full_image_path = os.path.join(base_data_path, 'data/test/', image_relative_path)
+            
+            if os.path.exists(full_image_path):
+                try:
+                    img = Image.open(full_image_path)
+                    print(f"Original Image for {name}:")
+                    display(img)
+
+                    # Run YOLO detection on the image
+                    results_yolo_sample = model_yolo(img.copy(), conf=0.25) # Using a default confidence for display
+
+                    # Plot results
+                    im_array_yolo = results_yolo_sample[0].plot()
+                    im_yolo = Image.fromarray(im_array_yolo[..., ::-1])  # RGB PIL image
+                    print(f"YOLO Detections for {name}:")
+                    display(im_yolo)
+                except Exception as e:
+                    print(f"Could not load or process image {full_image_path}: {e}")
+            else:
+                print(f"Image file not found: {full_image_path}")
+
 ```
