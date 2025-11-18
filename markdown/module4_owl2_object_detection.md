@@ -60,7 +60,7 @@ processor = Owlv2Processor.from_pretrained("google/owlv2-base-patch16-ensemble")
 model = Owlv2ForObjectDetection.from_pretrained("google/owlv2-base-patch16-ensemble")
 ```
 
-Now, let's define the objects we want to detect. We can see a deer in the image, so let's try to detect that. The model is zero-shot, so we can provide arbitrary text queries. Here, we are providing a few example queries. Note that these queries are not ideal for detecting a deer, but they will demonstrate the model's ability to distinguish between different objects. The processor then tokenizes the text and preprocesses the image to create the model inputs.
+Now, let's define the objects we want to detect. We can see a cheetah in the image, so let's try to detect that. The model is zero-shot, so we can provide arbitrary text queries. Here, we are providing a few example queries. Note that these queries are not ideal for detecting a cheetah, but they will demonstrate the model's ability to distinguish between different objects. The processor then tokenizes the text and preprocesses the image to create the model inputs.
 
 ```python
 texts = [["a photo of a leopard", "a photo of a tiger", "a photo of a rock"]]
@@ -143,14 +143,14 @@ for c in range(3):
         pca_image[:, :, c] = 0
 ```
 
-Here we visualize the PCA-reduced class embeddings. The resulting image shows how the model groups different parts of the image semantically. Areas with similar colors are considered similar by the model. You can often see the main object (the deer) being segmented from the background.
+Here we visualize the PCA-reduced class embeddings. The resulting image shows how the model groups different parts of the image semantically. Areas with similar colors are considered similar by the model. You can often see the main object (the cheetah) being segmented from the background.
 
 ```python
 plt.title("Class embeddings")
 plt.imshow(pca_image)
 ```
 
-This plot shows the objectness scores for each patch. Brighter areas indicate a higher probability that the patch contains an object. Notice how the model highlights the area where the deer is located.
+This plot shows the objectness scores for each patch. Brighter areas indicate a higher probability that the patch contains an object. Notice how the model highlights the area where the cheetah is located.
 
 ```python
 plt.title("Objectness scores")
