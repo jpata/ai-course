@@ -450,7 +450,7 @@ for index, row in tqdm.tqdm(sample_images.iterrows()):
     index_img += 1
 ```
 
-## Automatic Labelling Accuracy
+## Automatic Labelling Detection Rate
 
 Finally, we print the summary of our quick analysis. This shows, for each animal class, how many images we processed, and what percentage of them had at least one object detected by OWL2. This is not a measure of classification accuracy, but rather "detection recall" with a very general prompt. It helps to understand which animals are more easily detected by the model out-of-the-box.
 ```python
@@ -464,3 +464,16 @@ for common_name, stats in accuracy_tracker.items():
         print(f"Class: {common_name}, total: {total}, detected: {stats['detected']} ({detected_fraction:.2%}), missed: {stats['missed']} ({missed_fraction:.2%})")
 print("-------------------------------------\n")
 ```
+
+## Challenge: How Would You Measure Detection Precision?
+
+The "Automatic Labelling Detection Rate" we calculated gives us a sense of **Recall** in a specific way: out of all the images that *truly contain* an animal (based on our dataset's `common_name` label), what percentage of them did our model successfully detect *at least one object*? This metric tells us how good the model is at finding *something* when an animal is present.
+
+However, it doesn't tell us about the model's **Precision** regarding the detections themselves. In this context, precision would address: of all the bounding boxes the model *generated*, how many were genuinely identifying the animal, rather than some other object or a spurious detection?
+
+For example, our current script might flag an image as "detected" if OWL2 puts a bounding box around a tree, a rock, or some other background element, even though the image is known to contain an animal. This would be a **False Positive** detection. The model's task here is not to identify the animal's species, but simply to localize the animal.
+
+**Your challenge:** How would you modify the automatic labeling script to measure this form of detection precision? Think about:
+1.  Currently, the `texts` prompts are quite general (e.g., `"a photo of an animal"`, `"a photo of a bird"`, `"a photo of a dog"`). How could you use the `label` returned by OWL2 (which corresponds to one of these prompts) to infer if the detection is likely a false positive?
+2.  If the image is known to contain an animal, and the model's highest-scoring detection corresponds to a prompt like `"a photo of a rock"`, how would you count that?
+3.  What counters would you need to track (e.g., `true_positive_detections`, `false_positive_detections`) to calculate precision for localization?
