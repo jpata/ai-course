@@ -242,7 +242,7 @@ print("\nDisplaying 1 image from each unique 'common_name'...")
 unique_common_names = ena24_df['common_name'].unique()
 
 for name in unique_common_names:
-    # Get up to 2 image paths for the current common name
+    # Get up to 1 image for the current common name
     sample_images = ena24_df[ena24_df['common_name'] == name].head(1)
     
     if not sample_images.empty:

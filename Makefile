@@ -22,6 +22,7 @@ notebooks/%.ipynb: markdown/%.md
 execute: $(EXECUTED_NOTEBOOK_FILES)
 
 notebooks_executed/module4_yolo_finetuning.ipynb: notebooks_executed/module4_owl2_object_detection.ipynb
+notebooks_executed/module4_yolo_evaluation.ipynb: notebooks_executed/module4_yolo_finetuning.ipynb
 
 notebooks_executed/%.ipynb: notebooks/%.ipynb
 	mkdir -p notebooks_executed
