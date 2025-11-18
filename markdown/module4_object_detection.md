@@ -289,7 +289,7 @@ We can visualize the output of the Transformer's encoder and decoder to see how 
 # Run inference, asking the model to output hidden states from all layers
 inputs = processor_detr(images=image, return_tensors="pt")
 with torch.no_grad():
-    outputs = model_detr(**inputs, output_hidden_states=True)
+    outputs = model_detr(**inputs, output_hidden_states=True, output_attentions=True)
 
 # The final encoder output tensor has shape (batch, channels, height, width)
 encoder_features = outputs.encoder_hidden_states[-1] 
@@ -301,14 +301,91 @@ decoder_features = outputs.last_hidden_state
 print("\nPCA Visualization of RT-DETR Intermediate Features:")
 visualize_features_pca(encoder_features, "RT-DETR Encoder Output")
 
-# For the decoder, the features don't have a 2D spatial structure.
-# Instead, they represent a set of detected objects. We can visualize the embeddings themselves.
-plt.figure(figsize=(10, 5))
-sns.heatmap(decoder_features.squeeze(0).cpu().numpy(), cmap='viridis')
-plt.title("RT-DETR Decoder Output (Object Query Embeddings)")
-plt.xlabel("Embedding Dimension")
-plt.ylabel("Object Query Index")
+# --- Visualize Cross-Attention Maps ---
+# The cross-attentions tensor shows what part of the image each object query is "looking at".
+# The shape is (batch, queries, heads, dim1, dim2).
+cross_attentions = outputs.cross_attentions #Shape: (batch, num_queries, num_heads, height_keypoint, width_keypoint)
+
+# Get attentions for the first image, and average across the heads dimension.
+attention_maps = cross_attentions[0].mean(dim=2)[0]  # Shape: (num_queries, height_keypoint, width_keypoint)
+
+# Find the top 5 queries with the highest confidence score (excluding "no object").
+logits = outputs.logits
+probs = logits.softmax(-1)[0, :, :-1]  # Shape: (num_queries, num_classes - 1)
+scores, _ = probs.max(-1)
+top_scores, top_indices = torch.topk(scores, 5)
+
+print("\nVisualization of RT-DETR Cross-Attention Weights for Top 5 Queries:")
+fig, axs = plt.subplots(5, 1, figsize=(10, 12))
+fig.suptitle("Attention weights per query over 12 selected encoder keypoints", fontsize=16)
+
+for i, query_idx in enumerate(top_indices):
+    score = top_scores[i]
+
+    # Get the attention map for this query and flatten it to a 1D vector.
+    attn_map_2d = attention_maps[query_idx]  # Shape: (3, 4)
+    attn_weights = attn_map_2d.flatten().cpu().numpy() # Shape: (12,)
+
+    # Find the predicted class label for this query.
+    pred_class_idx = probs[query_idx].argmax()
+    pred_class_label = model_detr.config.id2label[pred_class_idx.item()]
+
+    # Plot the attention weights as a bar chart.
+    ax = axs[i]
+    ax.bar(range(len(attn_weights)), attn_weights)
+    ax.set_title(f"Query {query_idx} | Pred: {pred_class_label} ({score:.2f})")
+    ax.set_ylabel("Attention Weight")
+    ax.set_xticks(range(len(attn_weights)))
+    ax.set_xticklabels(range(len(attn_weights)))
+
+axs[-1].set_xlabel("Encoder Keypoint Index")
+plt.tight_layout(rect=[0, 0, 1, 0.96])
 plt.show()
+
+# --- NEW: Visualize Cross-Attention Maps on the Image ---
+
+# Helper function to visualize attention map overlaid on the original image
+def visualize_attention_map_on_image(original_image, attention_map_2d, title, alpha=0.5):
+    # Normalize attention map to 0-1
+    norm_attention_map = (attention_map_2d - attention_map_2d.min()) / (attention_map_2d.max() - attention_map_2d.min())
+
+    # Convert to PIL Image, resize, and convert back to numpy
+    # Ensure attention_map_2d is on CPU and is a numpy array before processing
+    attention_map_np = norm_attention_map.cpu().numpy() if isinstance(norm_attention_map, torch.Tensor) else norm_attention_map
+    attention_img = Image.fromarray(np.uint8(255 * attention_map_np))
+    attention_img = attention_img.resize(original_image.size, Image.Resampling.LANCZOS)
+    attention_img = np.array(attention_img)
+
+    # Apply colormap
+    cmap = plt.get_cmap('jet')
+    attention_heatmap = cmap(attention_img / 255.0)[:, :, :3] # Take only RGB channels
+
+    # Convert original image to numpy array
+    original_img_np = np.array(original_image) / 255.0 # Normalize to 0-1
+
+    # Blend images
+    blended_img = original_img_np * (1 - alpha) + attention_heatmap * alpha
+
+    plt.figure(figsize=(8, 8))
+    plt.imshow(blended_img)
+    plt.title(title)
+    plt.axis('off')
+    plt.show()
+
+print("\nVisualization of RT-DETR Cross-Attention Maps Overlaid on Image for Top 5 Queries:")
+for i, query_idx in enumerate(top_indices):
+    score = top_scores[i]
+    attn_map_2d = attention_maps[query_idx] # Shape: (3, 4)
+
+    # Find the predicted class label for this query.
+    pred_class_idx = probs[query_idx].argmax()
+    pred_class_label = model_detr.config.id2label[pred_class_idx.item()]
+
+    visualize_attention_map_on_image(
+        image, # The original PIL image
+        attn_map_2d,
+        title=f"Query {query_idx} | Pred: {pred_class_label} ({score:.2f}) Attention Map"
+    )
 ```
 
 <!-- #region -->
