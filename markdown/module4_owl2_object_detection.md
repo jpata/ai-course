@@ -35,6 +35,7 @@ from IPython.display import display,HTML
 import matplotlib.pyplot as plt
 import requests
 import tqdm
+import numpy as np
 ```
 
 Next, we load the `imageomics/IDLE-OO-Camera-Traps` dataset. We'll just take one example from the training split.
@@ -43,6 +44,7 @@ Next, we load the `imageomics/IDLE-OO-Camera-Traps` dataset. We'll just take one
 dataset = load_dataset(path="../data/IDLE-OO-Camera-Traps", split="test")
 iterator = iter(dataset)
 sample = next(iterator)
+print(sample)
 image = sample["image"]
 display(image)
 ```
@@ -103,6 +105,91 @@ for box, score, label in zip(boxes, scores, labels):
     draw.text((box[0], box[1]), f"{text[label]} {round(score.item(), 3)}", fill=color)
 
 image_with_boxes
+```
+
+## Investigating OWL2 Internals
+
+OWL2 predicts for each patch whether or not it contains an object, and its bounding box.
+It also gives an agnostic class embedding for each patch, which contains information about the contents of the box.
+
+```python
+feature_map = model.image_embedder(inputs.pixel_values)[0]
+batch_size, height, width, hidden_size = feature_map.shape
+image_features = feature_map.reshape(batch_size, height * width, hidden_size)
+source_class_embeddings = model.class_predictor(image_features)[1]
+objectnesses = model.objectness_predictor(image_features).sigmoid()
+boxes = model.box_predictor(image_features, feature_map=feature_map)
+
+source_class_embeddings.shape
+from sklearn.decomposition import PCA
+pca = PCA(n_components=3)
+num_patches = model.config.vision_config.image_size // model.config.vision_config.patch_size
+H, W = num_patches, num_patches
+pca_result = pca.fit_transform(source_class_embeddings[0].detach().numpy())
+pca_image = pca_result.reshape(H, W, 3)
+for c in range(3):
+    channel = pca_image[:, :, c]
+    min_val, max_val = channel.min(), channel.max()
+    if max_val > min_val:
+        pca_image[:, :, c] = (channel - min_val) / (max_val - min_val)
+    else:
+        pca_image[:, :, c] = 0
+```
+
+```python
+plt.title("Class embeddings")
+plt.imshow(pca_image)
+```
+
+```python
+plt.title("Objectness scores")
+plt.imshow(objectnesses.detach().numpy().reshape(H,W))
+```
+
+```python
+def get_preprocessed_image(pixel_values):
+    pixel_values = pixel_values.squeeze().numpy()
+    unnormalized_image = (pixel_values * np.array(processor.image_processor.image_std)[:, None, None]) + np.array(processor.image_processor.image_mean)[:, None, None]
+    unnormalized_image = (unnormalized_image * 255).astype(np.uint8)
+    unnormalized_image = np.moveaxis(unnormalized_image, 0, -1)
+    unnormalized_image = Image.fromarray(unnormalized_image)
+    return unnormalized_image
+```
+
+```python
+top_scores = np.argsort(objectnesses.detach().numpy()[0])[-3:]
+# Plot the original image, and the boxes of the top 3 objects.
+plt.figure(figsize=(10, 10))
+img_preprocessed = get_preprocessed_image(inputs.pixel_values)
+plt.imshow(img_preprocessed)
+plt.title("Original Image with Top 3 Objectness Boxes (Raw Model Output)")
+plt.axis('off')
+
+# Create a drawing object on a copy of the image to avoid modifying the original
+image_with_raw_boxes = img_preprocessed.copy()
+draw = ImageDraw.Draw(image_with_raw_boxes)
+
+img_width, img_height = img_preprocessed.size
+
+# Iterate over the top 3 objectness scores and their corresponding boxes
+for patch_idx in top_scores:
+    # Get the raw box coordinates for this patch
+    raw_box = boxes[0, patch_idx].detach().numpy()
+
+    # Assuming raw_box is [x_min_norm, y_min_norm, x_max_norm, y_max_norm] relative to feature map (0-1)
+    # Scale to original image dimensions
+    cx, cy, w, h = raw_box
+    cx = cx * img_width
+    cy = cy * img_height
+    w = w * img_width
+    h = h * img_height
+
+    box_coords_pixel = [cx-w/2, cy-h/2, cx+w/2, cy+h/2]
+
+    # Draw the rectangle
+    draw.rectangle(box_coords_pixel, outline="lime", width=3)
+
+plt.imshow(image_with_raw_boxes)
 ```
 
 ## Automatic data labelling
