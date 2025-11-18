@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Get Notified - The AI-Enabled Researcher</title>
+    
+    <!-- Google Fonts Import -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+
+    <!-- All CSS is in this <style> tag -->
+    <style>
+        :root {
+            --color-primary-dark: #1a1a2e;
+            --color-primary-light: #16213e;
+            --color-secondary: #0f3460;
+            --color-accent: #53d3b0;
+            --color-accent-dark: #46b394;
+            --color-text-light: #e0e0e0;
+            --color-text-dark: #000000;
+            --color-card-bg: #ffffff;
+            --font-family: 'Poppins', sans-serif;
+        }
+
+        /* --- Global Reset --- */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: var(--font-family);
+            background-color: #f4f7fc;
+            color: var(--color-text-dark);
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        .container {
+            width: 90%;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px 0;
+        }
+
+        h1, h2, h3 {
+            font-weight: 600;
+        }
+
+        h1 {
+            font-size: 2.8rem;
+            margin-bottom: 0.5rem;
+        }
+
+        h2 {
+            font-size: 2.2rem;
+            margin-bottom: 2rem;
+            text-align: center;
+            color: var(--color-primary-dark);
+        }
+        
+        h3 {
+            font-size: 1.25rem;
+            color: var(--color-primary-light);
+            margin-bottom: 0.75rem;
+        }
+
+        p {
+            font-size: 1rem;
+            font-weight: 300;
+        }
+
+        /* --- Hero Section --- */
+        .hero {
+            background: linear-gradient(135deg, var(--color-primary-dark) 0%, var(--color-secondary) 100%);
+            color: #ffffff;
+            padding: 100px 20px 80px 20px;
+            text-align: center;
+            border-bottom-left-radius: 40px;
+            border-bottom-right-radius: 40px;
+        }
+
+        .hero p {
+            font-size: 1.25rem;
+            font-weight: 300;
+            max-width: 700px;
+            margin: 0 auto 1.5rem auto;
+            color: var(--color-text-light);
+        }
+
+        /* --- Onboarding Form Card --- */
+        .onboarding-card {
+            background: var(--color-card-bg);
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.07);
+            padding: 40px;
+            max-width: 600px;
+            margin: 40px auto;
+            text-align: center;
+        }
+        .onboarding-card h2 {
+            font-size: 2rem;
+            color: var(--color-primary-dark);
+            margin-bottom: 1rem;
+        }
+        .onboarding-card p {
+            color: #555;
+            margin-bottom: 2rem;
+            line-height: 1.7;
+        }
+        .email-form {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .email-input {
+            padding: 15px;
+            font-size: 1rem;
+            border-radius: 10px;
+            border: 1px solid #ddd;
+            font-family: var(--font-family);
+        }
+        .submit-button {
+            background-color: var(--color-accent);
+            color: var(--color-primary-dark);
+            font-size: 1.1rem;
+            font-weight: 700;
+            padding: 15px;
+            border-radius: 10px;
+            text-decoration: none;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        .submit-button:hover {
+            background-color: var(--color-accent-dark);
+        }
+        .back-link {
+            display: inline-block;
+            margin-top: 2rem;
+            color: #777;
+            text-decoration: none;
+        }
+        .back-link:hover {
+            text-decoration: underline;
+        }
+
+        /* --- Footer --- */
+        footer {
+            text-align: center;
+            padding: 30px 0;
+            color: #777;
+            font-size: 0.9rem;
+        }
+
+        /* --- Responsive Design --- */
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 2.2rem;
+            }
+            .hero {
+                padding: 60px 20px 40px 20px;
+                border-bottom-left-radius: 30px;
+                border-bottom-right-radius: 30px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Simplified Hero Section -->
+    <header class="hero">
+        <div class="container">
+            <h1 id="onboarding-title">Coming Soon</h1>
+        </div>
+    </header>
+
+    <main>
+        <div class="container">
+            <div id="onboarding-content">
+                <div class="onboarding-card">
+                    <h2 id="onboarding-headline">Join the Waitlist</h2>
+                    <p id="onboarding-text">Be the first to know when it's released. Enter your email below, and we'll notify you upon launch.</p>
+                    <form class="email-form" id="signup-form">
+                        <input type="email" class="email-input" placeholder="Enter your email address" required>
+                        <button type="submit" class="submit-button">Notify Me</button>
+                    </form>
+                </div>
+            </div>
+             <div style="text-align: center;">
+                <a href="index.html" class="back-link">&larr; Back to Home</a>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <p>&copy; 2025 The AI-Enabled Researcher. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const params = new URLSearchParams(window.location.search);
+            const interest = params.get('interest');
+
+            const title = document.getElementById('onboarding-title');
+            const headline = document.getElementById('onboarding-headline');
+            const text = document.getElementById('onboarding-text');
+            const form = document.getElementById('signup-form');
+            const content = document.getElementById('onboarding-content');
+
+            if (interest === 'ebook') {
+                title.textContent = 'The Ebook';
+                headline.textContent = 'Get Notified About the Ebook';
+                text.innerHTML = 'An in-depth guide to AI-powered research, packed with practical examples and code. <br>Enter your email below to be the first to know when it launches.';
+            } else if (interest === 'video') {
+                title.textContent = 'The Video Lessons';
+                headline.textContent = 'Get Notified About the Video Course';
+                text.innerHTML = 'A comprehensive video course with step-by-step tutorials and hands-on projects. <br>Enter your email below to be the first to know when it launches.';
+            }
+
+            form.addEventListener('submit', (e) => {
+                e.preventDefault();
+                content.innerHTML = `
+                    <div class="onboarding-card">
+                        <h2>Thank You!</h2>
+                        <p>You're on the list. We'll send you an email as soon as the content is available.</p>
+                    </div>
+                `;
+            });
+        });
+    </script>
+</body>
+</html>

@@ -181,6 +181,13 @@
             transform: scale(1.05);
         }
 
+        .cta-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
         /* --- Footer --- */
         footer {
             text-align: center;
@@ -280,8 +287,12 @@
         <!-- Call to Action Section -->
         <section class="cta-section">
             <div class="container">
-                <h2>Ready to Transform Your Research?</h2>
-                <a href="#" class="cta-button">Enroll in the Course Today</a>
+                <h2>Ready to Learn More?</h2>
+                <p style="color: #e0e0e0; font-size: 1.1rem; max-width: 700px; margin: 0 auto 2rem auto; font-weight: 300;">Choose your preferred learning format. We're launching premium content soon.</p>
+                <div class="cta-buttons">
+                    <a href="onboarding.html?interest=ebook" class="cta-button">Notify Me: Ebook</a>
+                    <a href="onboarding.html?interest=video" class="cta-button">Notify Me: Video Lessons</a>
+                </div>
             </div>
         </section>
     </main>
