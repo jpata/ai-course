@@ -1,4 +1,3 @@
 .ipynb_checkpoints/**
-notebooks_executed/
-yolov8n.pt
+notebooks_executed/**
 *.pt
