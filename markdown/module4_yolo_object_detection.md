@@ -21,7 +21,7 @@ This notebook demonstrates how to use the YOLO model for object detection on the
 First, let's install the necessary libraries.
 
 ```python
-!pip install -q transformers datasets torch torchvision Pillow ultralytics scikit-learn
+!pip install -q transformers datasets torch torchvision Pillow ultralytics scikit-learn seaborn
 ```
 
 Now, let's import the required libraries.
@@ -216,6 +216,8 @@ import matplotlib.pyplot as plt
 import os
 from PIL import Image
 from IPython.display import display, HTML
+import seaborn as sns
+from sklearn.metrics import confusion_matrix
 
 # Define the base path to the locally checked out dataset
 base_data_path = '../data/IDLE-OO-Camera-Traps/'
@@ -237,39 +239,60 @@ plt.xticks(rotation=45, ha='right')
 plt.tight_layout()
 plt.show()
 
-# --- Display 1 image from each unique "common_name" ---
-print("\nDisplaying 1 image from each unique 'common_name'...")
+# --- Collect true and predicted classes for confusion matrix ---
+print("\nProcessing images to collect true and predicted classes...")
+y_true = []
+y_pred = []
+
 unique_common_names = ena24_df['common_name'].unique()
 
+# Let's take a few images per class to build a more meaningful confusion matrix
+num_samples_per_class = 5 
+
 for name in unique_common_names:
-    # Get up to 1 image for the current common name
-    sample_images = ena24_df[ena24_df['common_name'] == name].head(1)
+    sample_images = ena24_df[ena24_df['common_name'] == name].head(num_samples_per_class)
     
     if not sample_images.empty:
-        print(f"\n--- Common Name: {name} ---")
         for index, row in sample_images.iterrows():
-            # Construct the full image path
-            # The 'filepath' column contains paths like 'ENA24/image_uuid.png'
-            # The actual images are under data/IDLE-OO-Camera-Traps/data/test/ENA24/
             image_relative_path = row['filepath']
-            # Assuming the images are in data/IDLE-OO-Camera-Traps/data/test/
             full_image_path = os.path.join(base_data_path, 'data/test/', image_relative_path)
             
             if os.path.exists(full_image_path):
                 try:
                     img = Image.open(full_image_path)
-                    display(img)
+                    
+                    # Run YOLO detection
+                    results_yolo_sample = model_yolo(img.copy(), conf=0.25)
 
-                    # Run YOLO detection on the image
-                    results_yolo_sample = model_yolo(img.copy(), conf=0.25) # Using a default confidence for display
+                    y_true.append(name)
 
-                    # Plot results
-                    im_array_yolo = results_yolo_sample[0].plot()
-                    im_yolo = Image.fromarray(im_array_yolo[..., ::-1])  # RGB PIL image
-                    print(f"YOLO Detections for {name}:")
-                    display(im_yolo)
+                    if len(results_yolo_sample[0].boxes) > 0:
+                        # Get top prediction (results are sorted by confidence)
+                        top_prediction_cls_id = int(results_yolo_sample[0].boxes.cls[0].item())
+                        predicted_name = model_yolo.names[top_prediction_cls_id]
+                        y_pred.append(predicted_name)
+                    else:
+                        y_pred.append("No detection")
+
                 except Exception as e:
-                    print(f"Could not load image {full_image_path}: {e}")
+                    print(f"Could not process image {full_image_path}: {e}")
             else:
                 print(f"Image file not found: {full_image_path}")
+
+print("Finished collecting predictions.")
+
+# --- Create and display the confusion matrix ---
+print("\nGenerating confusion matrix...")
+
+# Use pandas crosstab for a straightforward confusion matrix
+df_cm = pd.DataFrame({'y_true': y_true, 'y_pred': y_pred})
+confusion_crosstab = pd.crosstab(df_cm['y_true'], df_cm['y_pred'], rownames=['True Class (ENA24)'], colnames=['Predicted Class (COCO)'])
+
+plt.figure(figsize=(18, 14))
+sns.heatmap(confusion_crosstab, annot=True, fmt='d', cmap='Blues')
+plt.title('Confusion Matrix: ENA24 True Class vs. YOLO Predicted Class')
+plt.xticks(rotation=45, ha='right')
+plt.yticks(rotation=0)
+plt.tight_layout()
+plt.show()
 ```
