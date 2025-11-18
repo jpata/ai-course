@@ -357,9 +357,32 @@
                 <!-- Grid for Module Patterns -->
                 <div class="module-detail-grid">
 
-                    <!-- Part 1: Zero-Shot Detection & Auto-Labeling -->
+                    <!-- Part 1: Getting Started with Pre-trained Models -->
                     <div class="module-card">
                         <span class="module-number">Part 1</span>
+                        <h3>Getting Started: Object Detection with Pre-trained Models</h3>
+                        <p>
+                            This part introduces the core task of object detection. We'll show how to use powerful, pre-trained models like <span class="model-name">YOLOv8</span> and <span class="model-name">DETR</span> to immediately find objects in images. This is the fastest way to get started and provides a crucial performance baseline before any custom training.
+                        </p>
+                        <h4>Key Research Applications:</h4>
+                        <ul>
+                            <li><strong>Rapid Data Exploration:</strong> Quickly scan a new dataset to identify the types and locations of objects present.</li>
+                            <li><strong>Establishing a Baseline:</strong> Measure out-of-the-box performance to decide if fine-tuning is necessary.</li>
+                            <li><strong>Comparing Architectures:</strong> Understand the conceptual differences between a single-shot detector like YOLO (fast, efficient) and a transformer-based model like DETR (often higher accuracy).</li>
+                        </ul>
+                        <h4>Concrete Steps from the Notebook:</h4>
+                        <ul>
+                            <li>Load a pre-trained <span class="model-name">YOLOv8n</span> model.</li>
+                            <li>Run inference on new images to get bounding boxes and class labels.</li>
+                            <li>Experiment with the `confidence` threshold to filter results and understand the precision-recall trade-off.</li>
+                            <li>(Optional) Compare YOLO's output to another pre-trained model to see different detection patterns.</li>
+                        </ul>
+                        <a href="https://github.com/jpata/ai-course/blob/main/notebooks/module4_object_detection.ipynb" class="cta-button" style="padding: 10px 20px; font-size: 0.9rem; margin-top: 15px;">View Notebook</a>
+                    </div>
+
+                    <!-- Part 2: Zero-Shot Detection & Auto-Labeling -->
+                    <div class="module-card">
+                        <span class="module-number">Part 2</span>
                         <h3>Zero-Shot Detection &amp; Auto-Labeling with OWL2</h3>
                         <p>
                             We start with a powerful, general-purpose object detection model called <span class="model-name">OWL2</span>.
@@ -381,7 +404,7 @@
 
                     <!-- Part 2: Fine-Tuning a Specialized Detector -->
                     <div class="module-card">
-                        <span class="module-number">Part 2</span>
+                        <span class="module-number">Part 3</span>
                         <h3>Fine-Tuning a YOLOv8 Model</h3>
                         <p>
                             While powerful, OWL2 can be slow. For large-scale analysis, we need a faster model. We use the dataset we automatically labeled in Part 1 to fine-tune a <span class="model-name">YOLOv8</span> model. Fine-tuning adapts a pre-trained model to a new, specific task.
@@ -403,7 +426,7 @@
 
                     <!-- Part 3: Using the Fine-Tuned Model -->
                     <div class="module-card">
-                        <span class="module-number">Part 3</span>
+                        <span class="module-number">Part 4</span>
                         <h3>Object Detection with the Fine-Tuned Model</h3>
                         <p>
                             With our fine-tuned model, we now have an efficient and specialized tool for our research task. This model can rapidly detect the specific classes it was trained on (in this case, the various animals from the ENA24 dataset) across the entire dataset.
@@ -419,13 +442,12 @@
                             <li>Run inference on new images to get fast and accurate bounding boxes for the target classes.</li>
                             <li>Visualize the results to confirm the model's effectiveness.</li>
                         </ul>
-                        <a href="https://github.com/jpata/ai-course/blob/main/notebooks/module4_yolo_object_detection.ipynb" class="cta-button" style="padding: 10px 20px; font-size: 0.9rem; margin-top: 15px;">View Detection Notebook</a>
                         <a href="https://github.com/jpata/ai-course/blob/main/notebooks/module4_yolo_evaluation.ipynb" class="cta-button" style="padding: 10px 20px; font-size: 0.9rem; margin-top: 15px;">View Evaluation Notebook</a>
                     </div>
                     
                     <!-- Part 4: Advanced Segmentation with SAM + YOLO -->
                     <div class="module-card">
-                        <span class="module-number">Part 4</span>
+                        <span class="module-number">Part 5</span>
                         <h3>Promptable Segmentation with SAM + YOLO</h3>
                         <p>
                             Bounding boxes are good, but what if you need the exact outline of an object? We can combine our fine-tuned YOLO model with the <span class="model-name">Segment Anything Model (SAM)</span>. SAM can take prompts, like bounding boxes, and produce highly detailed segmentation masks.
