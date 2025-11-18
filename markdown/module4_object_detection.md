@@ -49,6 +49,8 @@ import pandas as pd
 import os
 import seaborn as sns
 import matplotlib.pyplot as plt
+import numpy as np
+from sklearn.decomposition import PCA
 
 # YOLO imports
 from ultralytics import YOLO
@@ -102,13 +104,104 @@ display(im_yolo)
 <!-- #region -->
 ### 3.2. YOLO Architectural Deep Dive
 
-YOLO's architecture can be broken down into three key parts:
-*   **Backbone**: A deep convolutional neural network (like CSPDarknet53 in YOLOv8) that extracts image features at different scales.
-*   **Neck**: This part (e.g., a PANet) merges and refines the feature maps from the backbone, creating a rich feature pyramid that helps detect objects of various sizes.
-*   **Head**: The detection head takes the feature maps from the neck and predicts bounding boxes, class probabilities, and an "objectness" score for each location on a predefined grid.
+YOLO's architecture is a masterclass in efficiency, designed to perform detection in a single forward pass. It consists of three primary components: the Backbone, the Neck, and the Head.
 
-A critical post-processing step for YOLO is **Non-Maximum Suppression (NMS)**. Because the model predicts many potential bounding boxes for the same object, NMS is used to discard redundant, overlapping boxes, keeping only the one with the highest confidence score.
+*   **Backbone (CSPDarknet):** The backbone is a deep Convolutional Neural Network (CNN) responsible for extracting features from the input image at various scales. It starts with a `Stem` layer for initial downsampling, followed by a series of convolutional blocks (`C2f` in YOLOv8). As the image passes through the backbone, its spatial dimensions (height and width) are reduced, while the number of channels (feature depth) is increased. This process creates a hierarchy of feature maps: early layers capture low-level features like edges and textures, while deeper layers capture high-level semantic features like object parts.
+
+*   **Neck (PANet):** The neck's job is to fuse the feature maps from the backbone to create a feature pyramid that is rich in both semantic (what) and localization (where) information. YOLOv8 uses a Path Aggregation Network (PANet). It takes feature maps from different stages of the backbone and combines them through both a top-down path (bringing high-level context to lower-level maps) and a bottom-up path (bringing precise localization information from lower-level maps to higher-level ones). This allows the model to effectively detect objects of different sizes.
+
+*   **Head (YOLOv8 Head):** The head is the final stage, responsible for making predictions. It takes the fused feature maps from the neck and uses a series of convolutions to predict three things for each location on the feature grid:
+    1.  **Bounding Box:** The coordinates (x, y, width, height) of a potential object.
+    2.  **Objectness Score:** A confidence score indicating how likely it is that an object exists at this location.
+    3.  **Class Probabilities:** A set of probabilities for each of the 80 COCO classes.
+
+#### Output Interpretation and NMS
+
+The raw output of the YOLO head is a massive tensor containing thousands of potential detections at different scales. To produce a clean, final list of objects, a critical post-processing step is required: **Non-Maximum Suppression (NMS)**. NMS works by:
+1.  Filtering out boxes with low confidence scores.
+2.  For each class, finding groups of overlapping boxes that likely correspond to the same object.
+3.  Within each group, suppressing (discarding) all boxes except the one with the highest confidence score.
+
+The `ultralytics` library handles all of this automatically when you call the model.
+
+#### Visualizing Intermediate Features
+
+To better understand what the model "sees," we can extract the feature maps from intermediate layers and visualize them. We will use Principal Component Analysis (PCA) to reduce the high-dimensional channel information of a feature map into 3 components (RGB) for visualization.
+
+We'll grab features from three different points in the network:
+1.  An early backbone layer (`C2f_2`)
+2.  A later backbone layer (`C2f_4`)
+3.  The output of a neck layer (`C2f_6`)
 <!-- #endregion -->
+
+```python
+# Helper function to visualize a feature map using PCA
+def visualize_features_pca(feature_map, title):
+    # Detach from graph and move to CPU
+    features = feature_map.squeeze(0).cpu().numpy()
+    
+    # Reshape for PCA: (H*W, C)
+    # The input shape is (C, H, W), so we transpose it to (H, W, C) first
+    features = features.transpose(1, 2, 0)
+    h, w, c = features.shape
+    reshaped_features = features.reshape(-1, c)
+    
+    # Apply PCA to reduce channels to 3 components
+    pca = PCA(n_components=3)
+    pca_result = pca.fit_transform(reshaped_features)
+    
+    # Normalize and reshape back to an image (H, W, 3)
+    pca_img = (pca_result - pca_result.min()) / (pca_result.max() - pca_result.min())
+    pca_img = pca_img.reshape(h, w, 3)
+    
+    # Display
+    plt.figure(figsize=(6, 6))
+    plt.imshow(pca_img)
+    plt.title(title)
+    plt.axis('off')
+    plt.show()
+
+# --- YOLO Feature Extraction ---
+
+# Dictionary to store intermediate features
+yolo_features = {}
+
+# Hook function to capture the output of a module
+def get_yolo_hook(name):
+    def hook(model, input, output):
+        # For C2f modules, the output might be a tuple/list, we take the first tensor
+        if isinstance(output, (list, tuple)):
+            yolo_features[name] = output[0].detach()
+        else:
+            yolo_features[name] = output.detach()
+    return hook
+
+# Mapping friendly names to actual module names in the YOLOv8 model structure
+# The indices [2], [4], [6] correspond to early backbone, late backbone, and neck layers
+yolo_layer_map = {
+    "Early Backbone (C2f_2)": model_yolo.model.model[2],
+    "Mid Backbone (C2f_4)": model_yolo.model.model[4],
+    "Neck Features (C2f_6)": model_yolo.model.model[6],
+}
+
+# Register forward hooks on the target layers
+hooks = []
+for name, layer in yolo_layer_map.items():
+    hooks.append(layer.register_forward_hook(get_yolo_hook(name)))
+
+# Run inference on the sample image to trigger the hooks
+# We use the original `image` from the dataset
+results_yolo = model_yolo(image.copy(), verbose=False)
+
+# Remove the hooks now that we have the features
+for hook in hooks:
+    hook.remove()
+
+# Visualize the captured features
+print("PCA Visualization of YOLOv8 Intermediate Features:")
+for name, features in yolo_features.items():
+    visualize_features_pca(features, name)
+```
 
 <!-- #region -->
 ## 4. Part 2: RT-DETR (Real-Time DEtection TRansformer)
@@ -163,14 +256,60 @@ display(im_detr)
 <!-- #region -->
 ### 4.2. RT-DETR Architectural Deep Dive
 
-The DETR architecture is fundamentally different from YOLO:
-*   **Backbone**: Like YOLO, it uses a standard CNN backbone (e.g., ResNet) to extract a feature map from the image.
-*   **Transformer Encoder-Decoder**: This is the core of the model.
-    *   The **Encoder** takes the image features and enriches them using self-attention mechanisms.
-    *   The **Decoder** takes a small, fixed number of learnable embeddings called **object queries**. Each query is responsible for finding one object in the image. The decoder uses attention to compare the object queries to the image features and outputs the final set of predictions (class and bounding box) for each query.
+The DETR architecture introduced a paradigm shift by framing object detection as a direct set prediction problem, removing the need for many hand-designed components like NMS.
 
-This end-to-end philosophy means that each object is detected exactly once by one of the object queries. In its original form, this completely removes the need for NMS, simplifying the detection pipeline. RT-DETR introduces some optimizations that re-introduce an optional, efficient NMS-like step, but the core principle remains.
+*   **Backbone (ResNet):** Like YOLO, it begins with a standard CNN backbone (a modified ResNet-50 in this case) to extract a 2D feature map from the input image. This feature map captures the essential spatial features.
+
+*   **Transformer Encoder:** This is where DETR diverges significantly.
+    *   **Input:** The feature map from the backbone is flattened into a sequence of tokens. Crucially, these tokens are combined with **Positional Encodings**, which are vectors that give the model information about the original `(x, y)` position of each token. Without this, the transformer would be unaware of the image's spatial structure.
+    *   **Function:** The encoder processes this sequence using multiple layers of self-attention. This allows every feature token to attend to every other token, building a rich, context-aware representation. The output is an enriched sequence of image features.
+
+*   **Transformer Decoder:** The decoder is the core of the prediction mechanism.
+    *   **Input:** It takes two main inputs: the memory of enriched features from the encoder, and a small, fixed-size set of learnable embeddings called **Object Queries**.
+    *   **Function:** Each object query acts as a "slot" responsible for detecting a single object. Through layers of self-attention and cross-attention, the queries interact with each other (to avoid duplicates) and with the encoder's output (to find and localize objects). Each query "asks" the image features: "Is there an object here that matches my pattern?"
+    
+*   **Prediction Heads (FFNs):** After the final decoder layer, each output query embedding is passed to two separate Feed-Forward Networks (FFNs):
+    1.  A **classification head** predicts the class label for that query (e.g., 'bird', 'car', or 'no object').
+    2.  A **box head** predicts the bounding box coordinates `(center_x, center_y, width, height)`.
+
+#### End-to-End Philosophy
+
+This design is "end-to-end" because it directly outputs a sparse set of predictions. Since each query is encouraged to specialize on a different object, the model learns to avoid making duplicate predictions for the same object, thus eliminating the need for NMS in the original DETR paper. RT-DETR, for performance reasons, re-introduces an efficient, optional NMS-like step but the core philosophy of direct set prediction remains.
+
+#### Visualizing Intermediate Features
+
+We can visualize the output of the Transformer's encoder and decoder to see how the model refines its understanding. We'll look at:
+1.  **Encoder Output:** The contextually-rich image features before the decoder sees them.
+2.  **Decoder Output:** The final object-focused embeddings produced by the object queries.
 <!-- #endregion -->
+
+```python
+# --- RT-DETR Feature Extraction ---
+
+# Run inference, asking the model to output hidden states from all layers
+inputs = processor_detr(images=image, return_tensors="pt")
+with torch.no_grad():
+    outputs = model_detr(**inputs, output_hidden_states=True)
+
+# The final encoder output tensor has shape (batch, channels, height, width)
+encoder_features = outputs.encoder_hidden_states[-1] 
+
+# The decoder output is the final set of object query embeddings
+decoder_features = outputs.last_hidden_state
+
+# We can visualize the encoder output directly
+print("\nPCA Visualization of RT-DETR Intermediate Features:")
+visualize_features_pca(encoder_features, "RT-DETR Encoder Output")
+
+# For the decoder, the features don't have a 2D spatial structure.
+# Instead, they represent a set of detected objects. We can visualize the embeddings themselves.
+plt.figure(figsize=(10, 5))
+sns.heatmap(decoder_features.squeeze(0).cpu().numpy(), cmap='viridis')
+plt.title("RT-DETR Decoder Output (Object Query Embeddings)")
+plt.xlabel("Embedding Dimension")
+plt.ylabel("Object Query Index")
+plt.show()
+```
 
 <!-- #region -->
 ## 5. Comparative Analysis on the ENA24 Dataset
