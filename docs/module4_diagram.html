@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Animal Detection Flow Diagram</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+    /* Basic page styling */
+    body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        background-color: #f8f9fa;
+        color: #333;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 20px;
+        line-height: 1.6;
+    }
+
+    h2 {
+        color: #2c3e50;
+    }
+
+    /* Main container for the flowchart */
+    .flowchart-container {
+        display: flex;
+        flex-direction: column; /* Arrange items vertically */
+        align-items: center; /* Center items horizontally */
+        gap: 0; /* Gap is now handled by .flow-step margin */
+    }
+
+    /* Container for one row (image + box/arrow) */
+    .flow-step {
+        display: flex;
+        flex-direction: row;
+        align-items: flex-start; /* Vertically align tops of image and box */
+        gap: 30px; /* Space between image and box */
+        margin-bottom: 15px; /* Space between flow steps */
+    }
+    
+    /* Placeholder for image */
+    .image-placeholder {
+        width: 180px;
+        /* --- FIX: Set explicit height --- */
+        height: 120px; 
+        border: 2px dashed #999;
+        background-color: #f0f0f0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        color: #777;
+        font-size: 0.9em;
+        border-radius: 8px;
+        padding: 10px;
+        box-sizing: border-box; /* Include padding in width/height */
+    }
+    .image-placeholder strong {
+        font-weight: 600;
+        color: #555;
+        display: block;
+        margin-bottom: 5px;
+    }
+
+    /* Wrapper for the box and its connecting arrow */
+    .box-and-arrow {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+
+    /* Base style for all flow boxes */
+    .flow-box {
+        padding: 16px 24px;
+        border-radius: 8px;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+        text-align: center;
+        width: 320px; /* Fixed width for uniformity */
+        border: 1px solid #ddd;
+        /* --- FIX: Changed from min-height to fixed height --- */
+        height: 120px; 
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        box-sizing: border-box; /* Ensure padding doesn't add to height */
+    }
+
+    /* Style for data/input/output boxes */
+    .data-box {
+        background-color: #e0f7fa; /* Light cyan */
+        border-color: #00bcd4; /* Cyan border */
+    }
+
+    /* Style for processing steps */
+    .process-box {
+        background-color: #fff9c4; /* Light yellow */
+        border-color: #ffeb3b; /* Yellow border */
+    }
+    
+    /* Style for the final trained model */
+    .model-box {
+        background-color: #d1c4e9; /* Light purple */
+        border-color: #673ab7; /* Purple border */
+    }
+
+    /* Style for the final output */
+    .output-box {
+        background-color: #c8e6c9; /* Light green */
+        border-color: #4caf50; /* Green border */
+    }
+    
+    /* Style for the connecting arrow */
+    .arrow {
+        font-size: 28px;
+        color: #555;
+        margin-top: 15px; /* Space below the box */
+    }
+    
+    /* Using bold for titles within the boxes */
+    .flow-box strong {
+        display: block;
+        font-size: 1.1em;
+        color: #2c3e50;
+        margin-bottom: 5px;
+    }
+
+    /* Hide the arrow on the very last step */
+    .flow-step:last-child .arrow {
+        display: none;
+    }
+
+</style>
+</head>
+<body>
+
+    <h2>Animal Detection Model Fine-Tuning Pipeline</h2>
+
+    <div class="flowchart-container">
+
+        <div class="flow-step">
+            <div class="image-placeholder">
+                <strong>Image for Step 1</strong>
+                (e.g., sample photos of animals)
+            </div>
+            <div class="box-and-arrow">
+                <div class="flow-box data-box">
+                    <strong>Start Data:</strong>
+                    Large Photo Dataset<br>
+                    (Annotated with Species, NO Bounding Boxes)
+                </div>
+                <div class="arrow">⬇️</div>
+            </div>
+        </div>
+
+        <div class="flow-step">
+            <div class="image-placeholder">
+                <strong>Image for Step 2</strong>
+                (e.g., photo with a generic model's box)
+            </div>
+            <div class="box-and-arrow">
+                <div class="flow-box process-box">
+                    <strong>Step 1: Generate BBoxes</strong>
+                    Apply Promptable Generic Vision Model (e.g., SAM) to Photos
+                </div>
+                <div class="arrow">⬇️</div>
+            </div>
+        </div>
+        
+        <div class="flow-step">
+            <div class="image-placeholder">
+                <strong>Image for Step 3</strong>
+                (e.g., diagram of box + "Lion" tag)
+            </div>
+            <div class="box-and-arrow">
+                <div class="flow-box process-box">
+                    <strong>Step 2: Create New Dataset</strong>
+                    Combine Generated BBoxes with Existing Species Labels
+                </div>
+                <div class="arrow">⬇️</div>
+            </div>
+        </div>
+        
+        <div class="flow-step">
+            <div class="image-placeholder">
+                <strong>Image for Step 4</strong>
+                (e.g., grid of newly labeled images)
+            </div>
+            <div class="box-and-arrow">
+                <div class="flow-box data-box">
+                    <strong>New Training Data:</strong>
+                    (Images + Generated BBoxes + Species Labels)
+                </div>
+                <div class="arrow">⬇️</div>
+            </div>
+        </div>
+        
+        <div class="flow-step">
+            <div class="image-placeholder">
+                <strong>Image for Step 5</strong>
+                (e.g., training graph, GPU icon)
+            </div>
+            <div class="box-and-arrow">
+                <div class="flow-box process-box">
+                    <strong>Step 3: Train Model</strong>
+                    Fine-Tune YOLO Model on New Dataset
+                </div>
+                <div class="arrow">⬇️</div>
+            </div>
+        </div>
+        
+        <div class="flow-step">
+            <div class="image-placeholder">
+                <strong>Image for Step 6</strong>
+                (e.g., YOLO model logo, .pt file icon)
+            </div>
+            <div class="box-and-arrow">
+                <div class="flow-box model-box">
+                    <strong>Result:</strong>
+                    Fine-Tuned YOLO Model
+                </div>
+                <div class="arrow">⬇️</div>
+            </div>
+        </div>
+        
+        <div class="flow-step">
+            <div class="image-placeholder">
+                <strong>Image for Step 7</strong>
+                (e.g., video frames being processed)
+            </div>
+            <div class="box-and-arrow">
+                <div class="flow-box process-box">
+                    <strong>Step 4: Inference</strong>
+                    Apply Fine-Tuned Model to Target Videos
+                </div>
+                <div class="arrow">⬇️</div>
+            </div>
+        </div>
+
+        <div class="flow-step">
+            <div class="image-placeholder">
+                <strong>Image for Step 8</strong>
+                (e.g., final video with boxes/labels)
+            </div>
+            <div class="box-and-arrow">
+                <div class="flow-box output-box">
+                    <strong>Final Output:</strong>
+                    Videos with Bounding Boxes & Species Labels
+                </div>
+                <div class="arrow">⬇️</div> </div>
+        </div>
+
+    </div>
+
+</body>
+</html>
