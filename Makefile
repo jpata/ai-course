@@ -27,3 +27,9 @@ notebooks_executed/module4_yolo_evaluation.ipynb: notebooks_executed/module4_yol
 notebooks_executed/%.ipynb: notebooks/%.ipynb
 	mkdir -p notebooks_executed
 	papermill --log-output --cwd `pwd`/notebooks_executed --kernel python3 $< $@
+
+clean:
+	rm -Rf yolov8n.pt
+	rm -Rf notebooks_executed/runs
+	rm -Rf notebooks_executed/yolo11n.pt
+	rm -Rf notebooks_executed/ena24_yolo_dataset.yaml
