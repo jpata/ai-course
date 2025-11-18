@@ -1,4 +1,3 @@
----
 jupyter:
   jupytext:
     default_lexer: python
@@ -14,222 +13,183 @@ jupyter:
 ---
 
 <!-- #region -->
-# Object Detection with YOLO
+# Object Detection: A Comparison of YOLO and RT-DETR
 
-This notebook demonstrates how to use the YOLO model for object detection on the IDLE-OO-Camera-Traps dataset.
+This notebook introduces and compares two prominent object detection architectures: YOLO (You Only Look Once) and RT-DETR (Real-Time DEtection TRansformer). We will use pretrained models to perform inference on the ENA24 dataset and analyze their performance, paying special attention to the challenges posed by the mismatch between the models' training classes (COCO) and the dataset's actual classes.
 
-First, let's install the necessary libraries.
+Object detection is a computer vision task that involves identifying and locating objects within an image. A model performing this task returns a set of bounding boxes, each with a corresponding class label for the object it contains.
+
+We will explore:
+*   **YOLO**: A leading family of single-stage detectors known for its speed and efficiency.
+*   **RT-DETR**: A modern, transformer-based, end-to-end detector that provides high accuracy without requiring complex post-processing steps like Non-Maximum Suppression (NMS).
+*   **The ENA24 Dataset**: We will use the `imageomics/IDLE-OO-Camera-Traps` dataset to evaluate how well these models, pretrained on general-purpose datasets, perform on specialized data.
+<!-- #endregion -->
+
+<!-- #region -->
+## 1. Setup
+
+First, let's install the necessary libraries. `ultralytics` provides the YOLO model, while `transformers` gives us access to RT-DETR.
+<!-- #endregion -->
 
 ```python
-!pip install -q transformers datasets torch torchvision Pillow ultralytics scikit-learn seaborn
+!pip install -q ultralytics transformers timm datasets torch torchvision Pillow scikit-learn seaborn pandas matplotlib
 ```
 
-Now, let's import the required libraries.
+<!-- #region -->
+Now, let's import all the required modules.
 <!-- #endregion -->
 
 ```python
 import torch
 from datasets import load_dataset
-from PIL import Image
-from IPython.display import display,HTML
-import matplotlib.pyplot as plt
+from PIL import Image, ImageDraw, ImageFont
+from IPython.display import display
 import requests
+import pandas as pd
+import os
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+# YOLO imports
 from ultralytics import YOLO
+
+# DETR imports
+from transformers import DetrImageProcessor, RTDetrForObjectDetection
 ```
 
-## YOLO Object Detection
+<!-- #region -->
+## 2. Loading the Dataset and a Sample Image
 
-First, we'll use a pretrained YOLOv8 model to perform object detection.
+We'll load the `imageomics/IDLE-OO-Camera-Traps` dataset from a local path and select one example from the test split to use for our initial inference examples.
+<!-- #endregion -->
 
 ```python
-# Load a pretrained YOLO model
-model_yolo = YOLO('../yolov8n.pt')
-```
-
-Next, we load the `imageomics/IDLE-OO-Camera-Traps` dataset. We'll just take one example from the training split.
-
-```python label="load-image-cell"
 dataset = load_dataset(path="../data/IDLE-OO-Camera-Traps", split="test")
 iterator = iter(dataset)
 sample = next(iterator)
 image = sample["image"]
+print("A sample image from the ENA24 dataset:")
 display(image)
 ```
 
-Now we can run the YOLO model on the image. We'll test three different confidence thresholds: 0.5, 0.1, and 0.001.
-
-```python
-confidence_thresholds = [0.5, 0.1, 0.001]
-
-for conf in confidence_thresholds:
-    print(f"Running YOLO detection with confidence threshold: {conf}")
-    # Run inference on a copy of the image
-    results_yolo = model_yolo(image.copy(), conf=conf)
-
-    # Plot results
-    im_array = results_yolo[0].plot()
-    im = Image.fromarray(im_array[..., ::-1])  # RGB PIL image
-    display(im)
-```
-
-
 <!-- #region -->
-### YOLO Network Architecture Analysis
+## 3. Part 1: YOLO (You Only Look Once)
 
-To understand how the YOLO model turns image features into predictions, we can inspect its architecture. The model is generally composed of three main parts: the **Backbone**, the **Neck**, and the **Head**.
+The YOLO family of models are "single-stage" detectors, meaning they predict bounding boxes and class probabilities directly from the image in a single pass. They are famously fast and have become an industry standard for real-time object detection.
 
-*   **Backbone**: This is a deep convolutional neural network that extracts features from the input image at various scales. YOLOv8 uses a modified CSPDarknet53 architecture.
-*   **Neck**: This part connects the backbone to the head. It takes feature maps from different stages of the backbone and combines them to create richer feature pyramids. This allows the model to detect objects of different sizes more effectively. YOLOv8 uses a Path Aggregation Network (PANet) for this.
-*   **Head (Detection)**: This is the final part of the network that generates the output predictions. It takes the feature maps from the neck and produces bounding boxes, class probabilities, and objectness scores.
+### 3.1. Inference with YOLOv8
 
-Let's print the model structure to see the layers. We will use the pretrained `yolov8n.pt` model for this analysis.
+The `ultralytics` library makes it incredibly simple to load a pretrained YOLO model and run inference. We'll use `yolov8n.pt`, a nano-sized version of the model that is fast and lightweight.
+
+The model is pretrained on the COCO dataset, a large-scale object detection dataset with 80 common object classes like "person," "car," and "dog."
 <!-- #endregion -->
 
 ```python
-# Load a pretrained YOLO model to inspect its architecture
-model_to_inspect = YOLO('../yolov8n.pt')
-print(model_to_inspect.model)
+# Load a pretrained YOLOv8 model
+model_yolo = YOLO('../yolov8n.pt')
+
+# Run inference on a copy of the image
+results_yolo = model_yolo(image.copy(), conf=0.5)
+
+# The `plot()` method conveniently draws the detected boxes on the image
+im_array = results_yolo[0].plot()
+im_yolo = Image.fromarray(im_array[..., ::-1])  # Convert to RGB PIL image
+
+print("YOLOv8 Detections (Confidence > 0.5):")
+display(im_yolo)
 ```
 
 <!-- #region -->
-### From Features to Predictions
+### 3.2. YOLO Architectural Deep Dive
 
-The key to understanding the prediction process lies in the `Detect` module at the end of the network structure (the last layer in the printed output).
+YOLO's architecture can be broken down into three key parts:
+*   **Backbone**: A deep convolutional neural network (like CSPDarknet53 in YOLOv8) that extracts image features at different scales.
+*   **Neck**: This part (e.g., a PANet) merges and refines the feature maps from the backbone, creating a rich feature pyramid that helps detect objects of various sizes.
+*   **Head**: The detection head takes the feature maps from the neck and predicts bounding boxes, class probabilities, and an "objectness" score for each location on a predefined grid.
 
-1.  **Input Feature Maps**: The `Detect` head receives feature maps from the neck at three different scales (e.g., 80x80, 40x40, 20x20 for a 640x640 input). Each scale is responsible for detecting objects of a corresponding size (small, medium, large).
-
-2.  **Convolutional Prediction**: For each feature map, the `Detect` head applies a set of 1x1 convolutional layers. These convolutions transform the feature map's channels into a format that represents the predictions. For each location (or "patch") in the feature map, the model predicts:
-    *   **Bounding Box Coordinates (4 values)**: These are typically `(x_center, y_center, width, height)`, which are regressed relative to the grid cell's location.
-    *   **Class Probabilities (C values)**: A probability for each of the `C` classes the model was trained on.
-    *   **Objectness Score (1 value)**: This is often implicitly part of the class prediction or a separate score indicating the confidence that an object is present in the bounding box. In YOLOv8, the box and class predictions are decoupled.
-
-3.  **Output Tensor**: The output of the `Detect` head is a set of tensors. For a single image, the predictions from all scales are concatenated. The final output tensor has a shape like `(batch_size, num_classes + 4, num_predictions)`, where `num_predictions` is the total number of prediction anchors across all scales.
-
-4.  **Decoding the Output**: This raw tensor output is then post-processed:
-    *   The bounding box values are scaled to the original image dimensions.
-    *   The class scores are passed through a softmax or sigmoid function to get final probabilities.
-    *   Non-Maximum Suppression (NMS) is applied to filter out overlapping bounding boxes for the same object, keeping only the one with the highest confidence score.
-
-This process allows the model to efficiently predict multiple objects of various sizes and classes in a single forward pass.
+A critical post-processing step for YOLO is **Non-Maximum Suppression (NMS)**. Because the model predicts many potential bounding boxes for the same object, NMS is used to discard redundant, overlapping boxes, keeping only the one with the highest confidence score.
 <!-- #endregion -->
 
-### YOLO Intermediate Layer Visualization
+<!-- #region -->
+## 4. Part 2: RT-DETR (Real-Time DEtection TRansformer)
 
-Now, let's visualize the intermediate outputs of the YOLO model. We will add hooks to the model layers to capture the feature maps and then plot them.
+DETR (DEtection TRansformer) models reframe object detection as a direct set prediction problem. They use a transformer-based architecture to produce a fixed-size set of predictions, eliminating the need for complex post-processing like NMS. RT-DETR is an evolution of this idea, optimized for real-time performance.
+
+### 4.1. Inference with RT-DETR
+
+We will use the `transformers` library to load a pretrained RT-DETR model. Unlike YOLO, DETR models require a specific `processor` to resize and normalize the input image correctly.
+<!-- #endregion -->
 
 ```python
-# A list to store the feature maps
-feature_maps = []
-hooks = []
+# Load the processor and a pretrained RT-DETR model from Hugging Face
+processor_detr = DetrImageProcessor.from_pretrained("PekingU/rtdetr_r50vd")
+model_detr = RTDetrForObjectDetection.from_pretrained("PekingU/rtdetr_r50vd")
 
-# The hook function that saves the output of a layer
-def hook_fn(module, input, output):
-    feature_maps.append(output)
+# Prepare the image for the model
+inputs = processor_detr(images=image, return_tensors="pt")
 
-# We will visualize the output of the first 10 layers of the YOLO model
-detection_model = model_yolo.model
-layers_to_hook = detection_model.model[:10]
+# Run inference
+with torch.no_grad():
+    outputs = model_detr(**inputs)
 
-# Register a forward hook for each layer to be visualized
-for layer in layers_to_hook:
-    hooks.append(layer.register_forward_hook(hook_fn))
+# Post-process the results to get bounding boxes and class labels
+target_sizes = torch.tensor([image.size[::-1]])
+results_detr = processor_detr.post_process_object_detection(outputs, target_sizes=target_sizes, threshold=0.7)[0]
 
-# Run inference to trigger the hooks.
-# Make sure to clear feature_maps before running, as hooks are global.
-feature_maps = []
-results_yolo = model_yolo(image.copy())
-
-# Remove the hooks after inference
-for hook in hooks:
-    hook.remove()
-
-# Now, let's visualize the feature maps
-from sklearn.decomposition import PCA
-import numpy as np
-
-num_layers = len(feature_maps)
-layer_names = [f"Layer {i}: {type(layers_to_hook[i]).__name__}" for i in range(num_layers)]
-
-# Plot the feature maps in a grid
-cols = 4
-rows = (num_layers + cols - 1) // cols
-fig, axes = plt.subplots(rows, cols, figsize=(15, 4 * rows))
-axes = axes.flatten()
-
-for i, (fm, name) in enumerate(zip(feature_maps, layer_names)):
-    # Detach the tensor from the computation graph and move it to the CPU
-    fm = fm.detach().cpu()
-    # Get the feature map for the first image in the batch
-    fm = fm[0]
-    
-    C, H, W = fm.shape
-    
-    ax = axes[i]
-
-    # Use PCA to visualize the feature map's channel dimension
-    if C >= 3:
-        # Reshape for PCA: from (C, H, W) to (H*W, C)
-        data = fm.permute(1, 2, 0).reshape(H * W, C).numpy()
+# Helper function to draw bounding boxes
+def draw_boxes(image, boxes, labels, scores):
+    img_draw = image.copy()
+    draw = ImageDraw.Draw(img_draw)
+    for box, label, score in zip(boxes, labels, scores):
+        box = [round(i, 2) for i in box.tolist()]
+        label_text = f"{label} {score:.2f}"
         
-        # Apply PCA to reduce to 3 components for RGB visualization
-        pca = PCA(n_components=3)
-        pca_result = pca.fit_transform(data)
-        
-        # Reshape back to an image (H, W, 3)
-        pca_image = pca_result.reshape(H, W, 3)
-        
-        # Normalize each of the 3 principal components to the range [0, 1]
-        for c in range(3):
-            channel = pca_image[:, :, c]
-            min_val, max_val = channel.min(), channel.max()
-            if max_val > min_val:
-                pca_image[:, :, c] = (channel - min_val) / (max_val - min_val)
-            else:
-                pca_image[:, :, c] = 0
-        
-        ax.imshow(pca_image)
-        ax.set_title(name)
-    else:
-        # Fallback for layers with fewer than 3 channels: show the first channel in grayscale
-        ax.imshow(fm[0], cmap='gray')
-        ax.set_title(name + " (grayscale)")
+        draw.rectangle(box, outline="red", width=2)
+        draw.text((box[0], box[1]), label_text, fill="red")
+    return img_draw
 
-    ax.axis('off')
+# Get labels, scores, and boxes
+labels = [model_detr.config.id2label[i.item()] for i in results_detr["labels"]]
+scores = results_detr["scores"]
+boxes = results_detr["boxes"]
 
-# Hide any unused subplots
-for j in range(i + 1, len(axes)):
-    axes[j].axis('off')
+# Draw the boxes on the image
+im_detr = draw_boxes(image, boxes, labels, scores)
 
-plt.tight_layout()
-plt.show()
+print("RT-DETR Detections (Confidence > 0.7):")
+display(im_detr)
 ```
 
+<!-- #region -->
+### 4.2. RT-DETR Architectural Deep Dive
 
+The DETR architecture is fundamentally different from YOLO:
+*   **Backbone**: Like YOLO, it uses a standard CNN backbone (e.g., ResNet) to extract a feature map from the image.
+*   **Transformer Encoder-Decoder**: This is the core of the model.
+    *   The **Encoder** takes the image features and enriches them using self-attention mechanisms.
+    *   The **Decoder** takes a small, fixed number of learnable embeddings called **object queries**. Each query is responsible for finding one object in the image. The decoder uses attention to compare the object queries to the image features and outputs the final set of predictions (class and bounding box) for each query.
 
-## Exploring the ENA24 Dataset
+This end-to-end philosophy means that each object is detected exactly once by one of the object queries. In its original form, this completely removes the need for NMS, simplifying the detection pipeline. RT-DETR introduces some optimizations that re-introduce an optional, efficient NMS-like step, but the core principle remains.
+<!-- #endregion -->
 
-Instead of fine-tuning on a custom dataset, we will explore the `ENA24` dataset directly from the local checkout. This involves loading the existing labels, visualizing the frequency of common names, and displaying sample images for each unique common name.
+<!-- #region -->
+## 5. Comparative Analysis on the ENA24 Dataset
+
+Both models are powerful, but how do they perform on a real-world, specialized dataset like ENA24? A key challenge is that they were trained on COCO's 80 classes, which do not directly align with the animal species in ENA24.
+
+### 5.1. The Class Mismatch Problem
+
+Let's look at the classes in the ENA24 dataset. We expect the models to either fail to detect anything or to classify an ENA24 animal as a "related" COCO class (e.g., classifying a "deer" as a "cow" or "horse").
+<!-- #endregion -->
 
 ```python
-import pandas as pd
-import matplotlib.pyplot as plt
-import os
-from PIL import Image
-from IPython.display import display, HTML
-import seaborn as sns
-from sklearn.metrics import confusion_matrix
-
-# Define the base path to the locally checked out dataset
+# Define the base path and load the ENA24 metadata
 base_data_path = '../data/IDLE-OO-Camera-Traps/'
 ena24_csv_path = os.path.join(base_data_path, 'ENA24-balanced.csv')
-
-# Load the ENA24-balanced.csv file
 ena24_df = pd.read_csv(ena24_csv_path)
-print(f"Successfully loaded {ena24_csv_path}")
-print(f"Total images in ENA24 dataset: {len(ena24_df)}")
 
 # --- Visualize "common_name" frequency ---
-print("\nVisualizing 'common_name' frequency...")
+print("Visualizing 'common_name' frequency in the ENA24 Dataset:")
 plt.figure(figsize=(12, 6))
 ena24_df['common_name'].value_counts().plot(kind='bar')
 plt.title('Frequency of Common Names in ENA24 Dataset')
@@ -238,91 +198,113 @@ plt.ylabel('Count')
 plt.xticks(rotation=45, ha='right')
 plt.tight_layout()
 plt.show()
+```
 
-# --- Collect true and predicted classes for confusion matrix ---
-print("\nProcessing images to collect true and predicted classes...")
+<!-- #region -->
+### 5.2. Performance Evaluation
+
+We will now iterate through a sample of the ENA24 dataset, run both models on each image, and record the ground truth class and the top predicted COCO class. This will allow us to see which COCO classes the models associate with the ENA24 animals.
+<!-- #endregion -->
+
+```python
 y_true = []
-y_pred = []
+y_pred_yolo = []
+y_pred_detr = []
 
+# Let's take a few images per class for our analysis
+num_samples_per_class = 5
 unique_common_names = ena24_df['common_name'].unique()
-
-# Let's take a few images per class to build a more meaningful confusion matrix
-num_samples_per_class = 5 
 
 for name in unique_common_names:
     sample_images = ena24_df[ena24_df['common_name'] == name].head(num_samples_per_class)
     
-    if not sample_images.empty:
-        for index, row in sample_images.iterrows():
-            image_relative_path = row['filepath']
-            full_image_path = os.path.join(base_data_path, 'data/test/', image_relative_path)
-            
-            if os.path.exists(full_image_path):
-                try:
-                    img = Image.open(full_image_path)
-                    
-                    # Run YOLO detection
-                    results_yolo_sample = model_yolo(img.copy(), conf=0.25)
+    for index, row in sample_images.iterrows():
+        image_relative_path = row['filepath']
+        full_image_path = os.path.join(base_data_path, 'data/test/', image_relative_path)
+        
+        if os.path.exists(full_image_path):
+            try:
+                img = Image.open(full_image_path).convert("RGB")
+                y_true.append(name)
 
-                    y_true.append(name)
+                # --- Run YOLO detection ---
+                results_yolo = model_yolo(img.copy(), conf=0.25, verbose=False)
+                if len(results_yolo[0].boxes) > 0:
+                    top_pred_id = int(results_yolo[0].boxes.cls[0].item())
+                    predicted_name = model_yolo.names[top_pred_id]
+                    y_pred_yolo.append(predicted_name)
+                else:
+                    y_pred_yolo.append("No detection")
 
-                    if len(results_yolo_sample[0].boxes) > 0:
-                        # Get top prediction (results are sorted by confidence)
-                        top_prediction_cls_id = int(results_yolo_sample[0].boxes.cls[0].item())
-                        predicted_name = model_yolo.names[top_prediction_cls_id]
-                        y_pred.append(predicted_name)
-                    else:
-                        y_pred.append("No detection")
+                # --- Run RT-DETR detection ---
+                inputs = processor_detr(images=img, return_tensors="pt")
+                with torch.no_grad():
+                    outputs = model_detr(**inputs)
+                
+                target_sizes = torch.tensor([img.size[::-1]])
+                results_detr = processor_detr.post_process_object_detection(outputs, target_sizes=target_sizes, threshold=0.25)[0]
+                
+                if len(results_detr["scores"]) > 0:
+                    top_pred_id = results_detr["labels"][0].item()
+                    predicted_name = model_detr.config.id2label[top_pred_id]
+                    y_pred_detr.append(predicted_name)
+                else:
+                    y_pred_detr.append("No detection")
 
-                except Exception as e:
-                    print(f"Could not process image {full_image_path}: {e}")
-            else:
-                print(f"Image file not found: {full_image_path}")
+            except Exception as e:
+                print(f"Could not process image {full_image_path}: {e}")
 
 print("Finished collecting predictions.")
+```
 
-# --- Create and display the confusion matrix ---
-print("\nGenerating confusion matrix...")
+<!-- #region -->
+### 5.3. Visualization with a Confusion Matrix
 
-# Use pandas crosstab for a straightforward confusion matrix
-df_cm = pd.DataFrame({'y_true': y_true, 'y_pred': y_pred})
-confusion_crosstab = pd.crosstab(df_cm['y_true'], df_cm['y_pred'], rownames=['True Class (ENA24)'], colnames=['Predicted Class (COCO)'])
+A standard confusion matrix compares predictions against true labels when the classes are the same. Since our classes are different, we'll use a **cross-tabulation** (crosstab) to visualize the relationship between the true ENA24 classes and the predicted COCO classes from each model.
+<!-- #endregion -->
+
+```python
+# --- YOLO Crosstab ---
+df_yolo = pd.DataFrame({'y_true': y_true, 'y_pred': y_pred_yolo})
+yolo_crosstab = pd.crosstab(df_yolo['y_true'], df_yolo['y_pred'], rownames=['True Class (ENA24)'], colnames=['Predicted Class (YOLO/COCO)'])
 
 plt.figure(figsize=(18, 14))
-sns.heatmap(confusion_crosstab, annot=True, fmt='d', cmap='Blues')
+sns.heatmap(yolo_crosstab, annot=True, fmt='d', cmap='Blues')
+plt.title('ENA24 True Class vs. YOLO Predicted COCO Class')
+plt.show()
 
+# --- RT-DETR Crosstab ---
+df_detr = pd.DataFrame({'y_true': y_true, 'y_pred': y_pred_detr})
+detr_crosstab = pd.crosstab(df_detr['y_true'], df_detr['y_pred'], rownames=['True Class (ENA24)'], colnames=['Predicted Class (RT-DETR/COCO)'])
 
-# --- Display 1 image with YOLO detections from each unique "common_name" ---
-print("\nDisplaying 1 image with YOLO detections from each unique 'common_name'...")
-unique_common_names = ena24_df['common_name'].unique()
-
-for name in unique_common_names:
-    # Get 1 image for the current common name
-    sample_images = ena24_df[ena24_df['common_name'] == name].head(1)
-    
-    if not sample_images.empty:
-        print(f"\n--- Common Name: {name} ---")
-        for index, row in sample_images.iterrows():
-            image_relative_path = row['filepath']
-            full_image_path = os.path.join(base_data_path, 'data/test/', image_relative_path)
-            
-            if os.path.exists(full_image_path):
-                try:
-                    img = Image.open(full_image_path)
-                    print(f"Original Image for {name}:")
-                    display(img)
-
-                    # Run YOLO detection on the image
-                    results_yolo_sample = model_yolo(img.copy(), conf=0.25) # Using a default confidence for display
-
-                    # Plot results
-                    im_array_yolo = results_yolo_sample[0].plot()
-                    im_yolo = Image.fromarray(im_array_yolo[..., ::-1])  # RGB PIL image
-                    print(f"YOLO Detections for {name}:")
-                    display(im_yolo)
-                except Exception as e:
-                    print(f"Could not load or process image {full_image_path}: {e}")
-            else:
-                print(f"Image file not found: {full_image_path}")
-
+plt.figure(figsize=(18, 14))
+sns.heatmap(detr_crosstab, annot=True, fmt='d', cmap='Greens')
+plt.title('ENA24 True Class vs. RT-DETR Predicted COCO Class')
+plt.show()
 ```
+
+<!-- #region -->
+From the heatmaps, we can see how the models perform. For example, both models often correctly map the ENA24 `bird` class to the COCO `bird` class. However, for species not in COCO, like `red_deer` or `wild_boar`, the models might predict related classes like `cow`, `horse`, or `dog`, or simply fail to make a detection. This analysis highlights the limitations of using pretrained models on novel domains and underscores the need for fine-tuning.
+<!-- #endregion -->
+
+<!-- #region -->
+## 6. Head-to-Head Comparison: YOLO vs. RT-DETR
+
+| Feature               | YOLOv8                                        | RT-DETR                                                    |
+| --------------------- | --------------------------------------------- | ---------------------------------------------------------- |
+| **Architecture**      | CNN-based (CSPDarknet Backbone, PANet Neck)   | Hybrid (CNN Backbone + Transformer Encoder/Decoder)        |
+| **Prediction**        | Predicts on a dense grid across the image     | Predicts a sparse set of objects via object queries        |
+| **Post-processing**   | Requires Non-Maximum Suppression (NMS)        | End-to-end; minimal or no NMS required                     |
+| **Ease of Use**       | Very simple via `ultralytics` library         | More complex; requires manual processing via `transformers`|
+| **Core Idea**         | Fast, single-stage regression and classification | Direct set prediction, treating detection as a dictionary lookup |
+<!-- #endregion -->
+
+<!-- #region -->
+## 7. Conclusion
+
+In this notebook, we explored two state-of-the-art object detection models.
+*   **YOLOv8** is incredibly fast and easy to use, making it an excellent choice for real-time applications where speed is critical. Its reliance on NMS is a defining characteristic of single-stage detectors.
+*   **RT-DETR** represents a newer paradigm, using a transformer architecture to perform end-to-end detection. This removes the need for hand-tuned components like NMS and can lead to better performance, though often at the cost of higher computational requirements and implementation complexity.
+
+Our analysis on the ENA24 dataset showed that while pretrained models are a fantastic starting point, their performance on specialized domains is limited by their training data. To achieve high accuracy on ENA24's specific animal classes, the clear next step is **fine-tuning**, where we would train these models further on the ENA24 data itself.
+<!-- #endregion -->
