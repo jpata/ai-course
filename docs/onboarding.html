@@ -185,8 +185,15 @@
                 <div class="onboarding-card">
                     <h2 id="onboarding-headline">Join the Waitlist</h2>
                     <p id="onboarding-text">Be the first to know when it's released. Enter your email below, and we'll notify you upon launch.</p>
-                    <form id="signup-form" action="https://formsubmit.co/joosep.pata@gmail.com" method="POST" class="email-form">
+                    <form action="https://formsubmit.co/joosep.pata@gmail.com" method="POST" class="email-form">
                         <input type="email" name="email" class="email-input" placeholder="Enter your email address" required>
+                        
+                        <!-- 1. Replace this value with the FULL URL to your thank-you.html page -->
+                        <input type="hidden" name="_next" value="https://your-github-username.github.io/ai-course/docs/thank-you.html">
+                        
+                        <!-- 2. You can remove this line to enable the CAPTCHA after testing -->
+                        <input type="hidden" name="_captcha" value="false">
+                        
                         <button type="submit" class="submit-button">Notify Me</button>
                     </form>
                 </div>
@@ -212,8 +219,6 @@
             const title = document.getElementById('onboarding-title');
             const headline = document.getElementById('onboarding-headline');
             const text = document.getElementById('onboarding-text');
-            const form = document.getElementById('signup-form');
-            const content = document.getElementById('onboarding-content');
 
             if (interest === 'ebook') {
                 title.textContent = 'The Ebook';
@@ -224,50 +229,6 @@
                 headline.textContent = 'Get Notified About the Video Course';
                 text.innerHTML = 'A comprehensive video course with step-by-step tutorials and hands-on projects. <br>Enter your email below to be the first to know when it launches.';
             }
-
-            form.addEventListener('submit', (e) => {
-                e.preventDefault();
-                
-                const formData = new FormData(form);
-                const action = form.getAttribute('action');
-                const submitButton = form.querySelector('button[type="submit"]');
-
-                submitButton.textContent = 'Submitting...';
-                submitButton.disabled = true;
-
-                fetch(action, {
-                    method: 'POST',
-                    body: formData,
-                    headers: {
-                        'Accept': 'application/json'
-                    }
-                })
-                .then(response => {
-                    if (response.ok) {
-                        return response.json();
-                    } else {
-                        throw new Error('Network response was not ok.');
-                    }
-                })
-                .then(data => {
-                     content.innerHTML = `
-                        <div class="onboarding-card">
-                            <h2>Thank You!</h2>
-                            <p>You're on the list. We'll send you an email as soon as the content is available.</p>
-                        </div>
-                    `;
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    submitButton.textContent = 'Notify Me';
-                    submitButton.disabled = false;
-                    const errorP = document.createElement('p');
-                    errorP.style.color = 'red';
-                    errorP.style.marginTop = '1rem';
-                    errorP.textContent = 'Oops! Something went wrong. Please try again.';
-                    form.appendChild(errorP);
-                });
-            });
         });
     </script>
 </body>
