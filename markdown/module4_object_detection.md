@@ -628,7 +628,7 @@ tpr_at_0_9_yolo = tpr_yolo[idx_yolo]
 plt.figure(figsize=(8, 8))
 plt.plot(fpr_detr, tpr_detr, color='darkorange', lw=2, label=f'DETR ROC curve (area = {roc_auc_detr:.2f})')
 plt.plot(fpr_yolo, tpr_yolo, color='cornflowerblue', lw=2, label=f'YOLO ROC curve (area = {roc_auc_yolo:.2f})')
-plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')
+plt.plot([0, 1], [0, 1], color='navy', lw=1, linestyle='--')
 
 # Plot the specific points at confidence 0.9
 plt.scatter(fpr_at_0_9_detr, tpr_at_0_9_detr, color='darkorange', marker='o', s=100,
