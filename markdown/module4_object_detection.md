@@ -605,19 +605,37 @@ for name in tqdm.tqdm(unique_common_names):
 print("Finished generating scores.")
 
 # --- Calculate ROC Curve for DETR ---
-fpr_detr, tpr_detr, _ = roc_curve(ground_truth, prediction_scores_detr)
+fpr_detr, tpr_detr, thresholds_detr = roc_curve(ground_truth, prediction_scores_detr)
 roc_auc_detr = auc(fpr_detr, tpr_detr)
 
 # --- Calculate ROC Curve for YOLO ---
-fpr_yolo, tpr_yolo, _ = roc_curve(ground_truth, prediction_scores_yolo)
+fpr_yolo, tpr_yolo, thresholds_yolo = roc_curve(ground_truth, prediction_scores_yolo)
 roc_auc_yolo = auc(fpr_yolo, tpr_yolo)
+
+# --- Find points at confidence 0.9 ---
+# Find the index where the threshold is closest to 0.9 for DETR
+idx_detr = np.abs(thresholds_detr - 0.9).argmin()
+fpr_at_0_9_detr = fpr_detr[idx_detr]
+tpr_at_0_9_detr = tpr_detr[idx_detr]
+
+# Find the index where the threshold is closest to 0.9 for YOLO
+idx_yolo = np.abs(thresholds_yolo - 0.9).argmin()
+fpr_at_0_9_yolo = fpr_yolo[idx_yolo]
+tpr_at_0_9_yolo = tpr_yolo[idx_yolo]
 
 
 # --- Plot Both ROC Curves ---
-plt.figure(figsize=(10, 8))
+plt.figure(figsize=(8, 8))
 plt.plot(fpr_detr, tpr_detr, color='darkorange', lw=2, label=f'DETR ROC curve (area = {roc_auc_detr:.2f})')
 plt.plot(fpr_yolo, tpr_yolo, color='cornflowerblue', lw=2, label=f'YOLO ROC curve (area = {roc_auc_yolo:.2f})')
 plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')
+
+# Plot the specific points at confidence 0.9
+plt.scatter(fpr_at_0_9_detr, tpr_at_0_9_detr, color='darkorange', marker='o', s=100,
+            label=f'DETR @ 0.9 conf (FPR: {fpr_at_0_9_detr:.2f}, TPR: {tpr_at_0_9_detr:.2f})', zorder=5)
+plt.scatter(fpr_at_0_9_yolo, tpr_at_0_9_yolo, color='cornflowerblue', marker='o', s=100,
+            label=f'YOLO @ 0.9 conf (FPR: {fpr_at_0_9_yolo:.2f}, TPR: {tpr_at_0_9_yolo:.2f})', zorder=5)
+
 plt.xlim([0.0, 1.0])
 plt.ylim([0.0, 1.05])
 plt.xlabel('False Positive Rate')
