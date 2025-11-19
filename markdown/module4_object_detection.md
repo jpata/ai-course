@@ -512,44 +512,53 @@ plt.show()
 ```
 
 <!-- #region -->
-### 5.4. Evaluating DETR with a ROC Curve
+### 5.4. Evaluating with a ROC Curve
 
-To dig deeper into DETR's performance, we can generate a Receiver Operating Characteristic (ROC) curve. This will help us quantify how well the model can distinguish between a target class and other classes based on its confidence scores.
+To dig deeper into model performance, we can generate a Receiver Operating Characteristic (ROC) curve. This will help us quantify how well each model can distinguish between a target class and other classes based on its confidence scores.
 
 Since the ENA24 `bird` class has a direct counterpart in the COCO dataset, we can formulate a binary classification problem:
 *   **Positive Class**: Images from ENA24 labeled as `bird`.
 *   **Negative Class**: Images of all other animals in our ENA24 sample.
-*   **Prediction Score**: For each image, we take the highest score that DETR assigns to the COCO `bird` class across all of its object queries.
+*   **Prediction Score**: For each image, we take the highest score that a model assigns to the COCO `bird` class. For DETR, this is across all its object queries. For YOLO, this is across all its potential detections.
 
-The resulting ROC curve shows the trade-off between the True Positive Rate (correctly identifying birds) and the False Positive Rate (incorrectly labeling other animals as birds) at various confidence thresholds.
+The resulting ROC curves will show the trade-off between the True Positive Rate (correctly identifying birds) and the False Positive Rate (incorrectly labeling other animals as birds) at various confidence thresholds for both models.
 <!-- #endregion -->
 
 ```python
 # Import necessary functions for ROC curve
 from sklearn.metrics import roc_curve, auc
 
-# We will evaluate DETR's ability to distinguish the 'bird' class from other animals.
+# We will evaluate both models' ability to distinguish the 'bird' class from other animals.
 # Positives: Images of birds from ENA24
 # Negatives: Images of other animals from ENA24
 # Score: The model's maximum confidence score for the COCO 'bird' class.
 
 ground_truth = []
-prediction_scores = []
+prediction_scores_detr = []
+prediction_scores_yolo = []
 
-# Find the class ID for 'bird' in the DETR model's config
-bird_class_id = None
+# --- Find class IDs for 'bird' in both models ---
+detr_bird_class_id = None
 for k, v in model_detr.config.id2label.items():
     if v == 'bird':
-        bird_class_id = k
+        detr_bird_class_id = k
         break
 
-print(f"COCO 'bird' class ID: {bird_class_id}")
+yolo_bird_class_id = None
+for k, v in model_yolo.names.items():
+    if v == 'bird':
+        yolo_bird_class_id = k
+        break
 
-if bird_class_id is None:
-    raise Exception("Bird class not found")
+print(f"COCO 'bird' class ID (DETR): {detr_bird_class_id}")
+print(f"COCO 'bird' class ID (YOLO): {yolo_bird_class_id}")
+
+if detr_bird_class_id is None or yolo_bird_class_id is None:
+    raise Exception("Bird class not found in one of the models")
 
 print("Generating scores for ROC curve...")
 for name in tqdm.tqdm(unique_common_names):
+    # Using a larger sample for a more robust curve
     sample_images = ena24_df[ena24_df['common_name'] == name].head(20)
     
     for index, row in sample_images.iterrows():
@@ -565,39 +574,57 @@ for name in tqdm.tqdm(unique_common_names):
                 ground_truth.append(is_bird)
 
                 # --- Get DETR score for the 'bird' class ---
-                inputs = processor_detr(images=img, return_tensors="pt").to(device)
+                inputs = processor_detr(images=img.copy(), return_tensors="pt").to(device)
                 with torch.no_grad():
                     outputs = model_detr(**inputs)
                 
-                # Get probabilities for all classes (excluding 'no object')
                 probs = outputs.logits.softmax(-1)[0, :, :-1]
+                bird_scores = probs[:, detr_bird_class_id]
+                max_bird_score_detr = bird_scores.max().item()
+                prediction_scores_detr.append(max_bird_score_detr)
+
+                # --- Get YOLO score for the 'bird' class ---
+                # We run with a very low confidence threshold to get all potential boxes
+                results_yolo = model_yolo(img.copy(), conf=0.01, verbose=False)
+                boxes = results_yolo[0].boxes
                 
-                # Get the scores for the 'bird' class across all object queries
-                bird_scores = probs[:, bird_class_id]
+                # Find detections corresponding to the 'bird' class
+                bird_detections = boxes[boxes.cls == yolo_bird_class_id]
                 
-                # The final score is the maximum score for 'bird' in this image
-                max_bird_score = bird_scores.max().item()
-                prediction_scores.append(max_bird_score)
-                # print(name, index, max_bird_score, is_bird)
+                if len(bird_detections) > 0:
+                    # Get the highest confidence score among all bird detections
+                    max_bird_score_yolo = bird_detections.conf.max().item()
+                else:
+                    # If no bird was detected, the score is 0
+                    max_bird_score_yolo = 0.0
+                prediction_scores_yolo.append(max_bird_score_yolo)
 
             except Exception as e:
                 print(f"Could not process image {full_image_path}: {e}")
 
 print("Finished generating scores.")
 
-# --- Calculate and Plot ROC Curve ---
-fpr, tpr, thresholds = roc_curve(ground_truth, prediction_scores)
-roc_auc = auc(fpr, tpr)
+# --- Calculate ROC Curve for DETR ---
+fpr_detr, tpr_detr, _ = roc_curve(ground_truth, prediction_scores_detr)
+roc_auc_detr = auc(fpr_detr, tpr_detr)
 
-plt.figure(figsize=(8, 8))
-plt.plot(fpr, tpr, color='darkorange', lw=2, label=f'ROC curve (area = {roc_auc:.2f})')
+# --- Calculate ROC Curve for YOLO ---
+fpr_yolo, tpr_yolo, _ = roc_curve(ground_truth, prediction_scores_yolo)
+roc_auc_yolo = auc(fpr_yolo, tpr_yolo)
+
+
+# --- Plot Both ROC Curves ---
+plt.figure(figsize=(10, 8))
+plt.plot(fpr_detr, tpr_detr, color='darkorange', lw=2, label=f'DETR ROC curve (area = {roc_auc_detr:.2f})')
+plt.plot(fpr_yolo, tpr_yolo, color='cornflowerblue', lw=2, label=f'YOLO ROC curve (area = {roc_auc_yolo:.2f})')
 plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')
 plt.xlim([0.0, 1.0])
 plt.ylim([0.0, 1.05])
 plt.xlabel('False Positive Rate')
 plt.ylabel('True Positive Rate')
-plt.title('DETR ROC Curve for "bird" class detection on ENA24')
+plt.title('ROC Curve for "bird" class detection on ENA24')
 plt.legend(loc="lower right")
+plt.grid(True)
 plt.show()
 ```
 
