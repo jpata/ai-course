@@ -13,22 +13,22 @@ jupyter:
 ---
 
 <!-- #region -->
-# Object Detection: A Comparison of YOLO and RT-DETR
+# Object Detection: A Comparison of YOLO and DETR
 
-This notebook introduces and compares two prominent object detection architectures: YOLO (You Only Look Once) and RT-DETR (Real-Time DEtection TRansformer). We will use pretrained models to perform inference on the ENA24 dataset and analyze their performance, paying special attention to the challenges posed by the mismatch between the models' training classes (COCO) and the dataset's actual classes.
+This notebook introduces and compares two prominent object detection architectures: YOLO (You Only Look Once) and DETR (Real-Time DEtection TRansformer). We will use pretrained models to perform inference on the ENA24 dataset and analyze their performance, paying special attention to the challenges posed by the mismatch between the models' training classes (COCO) and the dataset's actual classes.
 
 Object detection is a computer vision task that involves identifying and locating objects within an image. A model performing this task returns a set of bounding boxes, each with a corresponding class label for the object it contains.
 
 We will explore:
 *   **YOLO**: A leading family of single-stage detectors known for its speed and efficiency.
-*   **RT-DETR**: A modern, transformer-based, end-to-end detector that provides high accuracy without requiring complex post-processing steps like Non-Maximum Suppression (NMS).
+*   **DETR**: A modern, transformer-based, end-to-end detector that provides high accuracy without requiring complex post-processing steps like Non-Maximum Suppression (NMS).
 *   **The ENA24 Dataset**: We will use the `imageomics/IDLE-OO-Camera-Traps` dataset to evaluate how well these models, pretrained on general-purpose datasets, perform on specialized data.
 <!-- #endregion -->
 
 <!-- #region -->
 ## 1. Setup
 
-First, let's install the necessary libraries. `ultralytics` provides the YOLO model, while `transformers` gives us access to RT-DETR.
+First, let's install the necessary libraries. `ultralytics` provides the YOLO model, while `transformers` gives us access to DETR.
 <!-- #endregion -->
 
 ```python
@@ -51,12 +51,13 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.decomposition import PCA
+import cv2
 
 # YOLO imports
 from ultralytics import YOLO
 
 # DETR imports
-from transformers import DetrImageProcessor, RTDetrForObjectDetection
+from transformers import DetrImageProcessor, DetrForObjectDetection
 ```
 
 <!-- #region -->
@@ -66,11 +67,9 @@ We'll load the `imageomics/IDLE-OO-Camera-Traps` dataset from a local path and s
 <!-- #endregion -->
 
 ```python
-dataset = load_dataset(path="../data/IDLE-OO-Camera-Traps", split="test")
-iterator = iter(dataset)
-sample = next(iterator)
-image = sample["image"]
-print("A sample image from the ENA24 dataset:")
+image_path = "../data/IDLE-OO-Camera-Traps/data/test/desert-lion/8b0146e9-3117-4d76-b61c-a8ead22e5755.png"
+image = Image.open(image_path).convert("RGB")
+print(f"Loaded image: {image_path}")
 display(image)
 ```
 
@@ -142,6 +141,7 @@ def visualize_features_pca(feature_map, title):
     
     # Reshape for PCA: (H*W, C)
     # The input shape is (C, H, W), so we transpose it to (H, W, C) first
+    print("feat", features.shape)
     features = features.transpose(1, 2, 0)
     h, w, c = features.shape
     reshaped_features = features.reshape(-1, c)
@@ -204,19 +204,19 @@ for name, features in yolo_features.items():
 ```
 
 <!-- #region -->
-## 4. Part 2: RT-DETR (Real-Time DEtection TRansformer)
+## 4. Part 2: DETR (DEtection TRansformer)
 
-DETR (DEtection TRansformer) models reframe object detection as a direct set prediction problem. They use a transformer-based architecture to produce a fixed-size set of predictions, eliminating the need for complex post-processing like NMS. RT-DETR is an evolution of this idea, optimized for real-time performance.
+DETR (DEtection TRansformer) models reframe object detection as a direct set prediction problem. They use a transformer-based architecture to produce a fixed-size set of predictions, eliminating the need for complex post-processing like NMS. DETR is an evolution of this idea, optimized for real-time performance.
 
-### 4.1. Inference with RT-DETR
+### 4.1. Inference with DETR
 
-We will use the `transformers` library to load a pretrained RT-DETR model. Unlike YOLO, DETR models require a specific `processor` to resize and normalize the input image correctly.
+We will use the `transformers` library to load a pretrained DETR model. Unlike YOLO, DETR models require a specific `processor` to resize and normalize the input image correctly.
 <!-- #endregion -->
 
 ```python
-# Load the processor and a pretrained RT-DETR model from Hugging Face
-processor_detr = DetrImageProcessor.from_pretrained("PekingU/rtdetr_r50vd")
-model_detr = RTDetrForObjectDetection.from_pretrained("PekingU/rtdetr_r50vd")
+# Load the processor and a pretrained DETR model from Hugging Face
+processor_detr = DetrImageProcessor.from_pretrained("facebook/detr-resnet-50", revision="no_timm")
+model_detr = DetrForObjectDetection.from_pretrained("facebook/detr-resnet-50", revision="no_timm")
 
 # Prepare the image for the model
 inputs = processor_detr(images=image, return_tensors="pt")
@@ -226,8 +226,9 @@ with torch.no_grad():
     outputs = model_detr(**inputs)
 
 # Post-process the results to get bounding boxes and class labels
+# We set a low threshold to get all potential detections, then we'll select the top 3.
 target_sizes = torch.tensor([image.size[::-1]])
-results_detr = processor_detr.post_process_object_detection(outputs, target_sizes=target_sizes, threshold=0.7)[0]
+results_detr = processor_detr.post_process_object_detection(outputs, target_sizes=target_sizes, threshold=0.1)[0]
 
 # Helper function to draw bounding boxes
 def draw_boxes(image, boxes, labels, scores):
@@ -241,24 +242,34 @@ def draw_boxes(image, boxes, labels, scores):
         draw.text((box[0], box[1]), label_text, fill="red")
     return img_draw
 
-# Get labels, scores, and boxes
-labels = [model_detr.config.id2label[i.item()] for i in results_detr["labels"]]
+# Get labels, scores, and boxes for the top 3 detections
 scores = results_detr["scores"]
+labels = results_detr["labels"]
 boxes = results_detr["boxes"]
+
+TOP_K = 3
+k = min(len(scores), TOP_K)
+
+scores, indices = torch.topk(scores, k)
+labels = labels[indices]
+boxes = boxes[indices]
+
+# Convert label IDs to names
+labels = [model_detr.config.id2label[i.item()] for i in labels]
 
 # Draw the boxes on the image
 im_detr = draw_boxes(image, boxes, labels, scores)
 
-print("RT-DETR Detections (Confidence > 0.7):")
+print(f"DETR Top {k} Detections:")
 display(im_detr)
 ```
 
 <!-- #region -->
-### 4.2. RT-DETR Architectural Deep Dive
+### 4.2. DETR Architectural Deep Dive
 
 The DETR architecture introduced a paradigm shift by framing object detection as a direct set prediction problem, removing the need for many hand-designed components like NMS.
 
-*   **Backbone (ResNet):** Like YOLO, it begins with a standard CNN backbone (a modified ResNet-50 in this case) to extract a 2D feature map from the input image. This feature map captures the essential spatial features.
+*   **Backbone (ResNet):** It begins with a standard CNN backbone (a ResNet-50 in this case) to extract a 2D feature map from the input image. This feature map captures the essential spatial features.
 
 *   **Transformer Encoder:** This is where DETR diverges significantly.
     *   **Input:** The feature map from the backbone is flattened into a sequence of tokens. Crucially, these tokens are combined with **Positional Encodings**, which are vectors that give the model information about the original `(x, y)` position of each token. Without this, the transformer would be unaware of the image's spatial structure.
@@ -274,118 +285,113 @@ The DETR architecture introduced a paradigm shift by framing object detection as
 
 #### End-to-End Philosophy
 
-This design is "end-to-end" because it directly outputs a sparse set of predictions. Since each query is encouraged to specialize on a different object, the model learns to avoid making duplicate predictions for the same object, thus eliminating the need for NMS in the original DETR paper. RT-DETR, for performance reasons, re-introduces an efficient, optional NMS-like step but the core philosophy of direct set prediction remains.
+This design is "end-to-end" because it directly outputs a sparse set of predictions. Since each query is encouraged to specialize on a different object, the model learns to avoid making duplicate predictions for the same object, thus eliminating the need for NMS.
 
-#### Visualizing Intermediate Features
-
-We can visualize the output of the Transformer's encoder and decoder to see how the model refines its understanding. We'll look at:
-1.  **Encoder Output:** The contextually-rich image features before the decoder sees them.
-2.  **Decoder Output:** The final object-focused embeddings produced by the object queries.
 <!-- #endregion -->
 
+#### Visualizing Attention Maps
+
 ```python
-# --- RT-DETR Feature Extraction ---
-
-# Run inference, asking the model to output hidden states from all layers
-inputs = processor_detr(images=image, return_tensors="pt")
+# --- STEP 1: INFERENCE WITH ATTENTIONS ---
+# We must request output_attentions=True to get the internal weights
+print("Running inference with attentions...")
 with torch.no_grad():
-    outputs = model_detr(**inputs, output_hidden_states=True, output_attentions=True)
+    outputs = model_detr(**inputs, output_attentions=True)
+    
+    # 1. Get Probabilities and Top K
+    probs = outputs.logits.softmax(-1)[0, :, :-1]
+    max_scores, class_ids = probs.max(-1)
+    TOP_K = 3
+    top_scores, top_idxs = torch.topk(max_scores, TOP_K)
 
-# The final encoder output tensor has shape (batch, channels, height, width)
-encoder_features = outputs.encoder_hidden_states[-1] 
+# --- STEP 2: PROCESS ATTENTION MAPS ---
+print("Generating Cross-Attention Maps...")
 
-# The decoder output is the final set of object query embeddings
-decoder_features = outputs.last_hidden_state
+# Get the Cross-Attentions from the LAST decoder layer
+# Shape: (Batch, Num_Heads, Num_Queries, Sequence_Length)
+# Sequence_Length = Feature_Height * Feature_Width (usually H/32 * W/32)
+cross_attentions = outputs.cross_attentions[-1]
 
-# We can visualize the encoder output directly
-print("\nPCA Visualization of RT-DETR Intermediate Features:")
-visualize_features_pca(encoder_features, "RT-DETR Encoder Output")
+# Get input image dimensions
+img_h, img_w = inputs['pixel_values'].shape[-2:]
 
-# --- Visualize Cross-Attention Maps ---
-# The cross-attentions tensor shows what part of the image each object query is "looking at".
-# The shape is (batch, queries, heads, dim1, dim2).
-cross_attentions = outputs.cross_attentions #Shape: (batch, num_queries, num_heads, height_keypoint, width_keypoint)
+# Prepare background image for visualization
+img_tensor = inputs['pixel_values'][0].detach().cpu()
+mean = torch.tensor([0.485, 0.456, 0.406]).view(3, 1, 1)
+std = torch.tensor([0.229, 0.224, 0.225]).view(3, 1, 1)
+rgb_img_base = (img_tensor * std + mean).permute(1, 2, 0).numpy()
+rgb_img_base = np.clip(rgb_img_base, 0, 1)
 
-# Get attentions for the first image, and average across the heads dimension.
-attention_maps = cross_attentions[0].mean(dim=2)[0]  # Shape: (num_queries, height_keypoint, width_keypoint)
+# Setup Plot
+fig, axes = plt.subplots(1, TOP_K, figsize=(20, 6))
+if TOP_K == 1: axes = [axes]
 
-# Find the top 5 queries with the highest confidence score (excluding "no object").
-logits = outputs.logits
-probs = logits.softmax(-1)[0, :, :-1]  # Shape: (num_queries, num_classes - 1)
-scores, _ = probs.max(-1)
-top_scores, top_indices = torch.topk(scores, 5)
+for i, query_idx_tensor in enumerate(top_idxs):
+    query_idx = query_idx_tensor.item()
+    class_id = class_ids[query_idx].item()
+    score = top_scores[i].item()
+    label_name = model_detr.config.id2label[class_id]
 
-print("\nVisualization of RT-DETR Cross-Attention Weights for Top 5 Queries:")
-fig, axs = plt.subplots(5, 1, figsize=(10, 12))
-fig.suptitle("Attention weights per query over 12 selected encoder keypoints", fontsize=16)
+    print(f"Rank {i+1}: {label_name} | Score: {score:.2f} | Query Index: {query_idx}")
 
-for i, query_idx in enumerate(top_indices):
-    score = top_scores[i]
+    # 1. Extract Attention for this specific Query
+    # Shape: [Batch, Heads, Queries, Seq] -> [Heads, Seq]
+    attn_map = cross_attentions[0, :, query_idx, :]
+    
+    # 2. Average over Attention Heads
+    # Shape: [Seq]
+    attn_map = attn_map.mean(dim=0).detach().cpu()
 
-    # Get the attention map for this query and flatten it to a 1D vector.
-    attn_map_2d = attention_maps[query_idx]  # Shape: (3, 4)
-    attn_weights = attn_map_2d.flatten().cpu().numpy() # Shape: (12,)
+    # 3. Reshape Sequence back to 2D Feature Map
+    # We infer the feature map size (H/32, W/32)
+    feat_h = int(np.ceil(img_h / 32))
+    feat_w = int(np.ceil(img_w / 32))
+    
+    # Handle potential mismatch due to padding/rounding
+    num_patches = feat_h * feat_w
+    # DETR sometimes pads the mask, so we strictly reshape to what matches the sequence length
+    # If exact match isn't possible, we calculate approximate square side
+    if attn_map.shape[0] != num_patches:
+       # Fallback for edge cases: assume roughly square aspect ratio
+       side = int(attn_map.shape[0]**0.5)
+       feat_h, feat_w = side, side
 
-    # Find the predicted class label for this query.
-    pred_class_idx = probs[query_idx].argmax()
-    pred_class_label = model_detr.config.id2label[pred_class_idx.item()]
+    attn_map = attn_map.reshape(feat_h, feat_w).numpy()
 
-    # Plot the attention weights as a bar chart.
-    ax = axs[i]
-    ax.bar(range(len(attn_weights)), attn_weights)
-    ax.set_title(f"Query {query_idx} | Pred: {pred_class_label} ({score:.2f})")
-    ax.set_ylabel("Attention Weight")
-    ax.set_xticks(range(len(attn_weights)))
-    ax.set_xticklabels(range(len(attn_weights)))
+    # 4. Process for Visualization
+    # Resize to original image size
+    attn_map = cv2.resize(attn_map, (img_w, img_h))
+    
+    # Normalize 0-1
+    attn_map = (attn_map - attn_map.min()) / (attn_map.max() - attn_map.min())
+    
+    # Apply ColorMap
+    heatmap = np.uint8(255 * attn_map)
+    heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)
+    
+    # Overlay
+    visualization = cv2.addWeighted(np.uint8(255 * rgb_img_base), 0.6, heatmap, 0.4, 0)
 
-axs[-1].set_xlabel("Encoder Keypoint Index")
-plt.tight_layout(rect=[0, 0, 1, 0.96])
+    # 5. Draw Box
+    pred_box = outputs.pred_boxes[0, query_idx].detach().cpu().numpy()
+    cx, cy, w_box, h_box = pred_box
+    x1 = int((cx - w_box / 2) * img_w)
+    y1 = int((cy - h_box / 2) * img_h)
+    x2 = int((cx + w_box / 2) * img_w)
+    y2 = int((cy + h_box / 2) * img_h)
+
+    cv2.rectangle(visualization, (x1, y1), (x2, y2), (255, 255, 255), 2)
+    
+    # Label
+    label_text = f"{label_name} {score:.2f}"
+    cv2.putText(visualization, label_text, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+
+    axes[i].imshow(visualization)
+    axes[i].axis('off')
+    axes[i].set_title(f"Rank {i+1}: {label_name}", fontsize=14)
+
+plt.tight_layout()
 plt.show()
-
-# --- NEW: Visualize Cross-Attention Maps on the Image ---
-
-# Helper function to visualize attention map overlaid on the original image
-def visualize_attention_map_on_image(original_image, attention_map_2d, title, alpha=0.5):
-    # Normalize attention map to 0-1
-    norm_attention_map = (attention_map_2d - attention_map_2d.min()) / (attention_map_2d.max() - attention_map_2d.min())
-
-    # Convert to PIL Image, resize, and convert back to numpy
-    # Ensure attention_map_2d is on CPU and is a numpy array before processing
-    attention_map_np = norm_attention_map.cpu().numpy() if isinstance(norm_attention_map, torch.Tensor) else norm_attention_map
-    attention_img = Image.fromarray(np.uint8(255 * attention_map_np))
-    attention_img = attention_img.resize(original_image.size, Image.Resampling.LANCZOS)
-    attention_img = np.array(attention_img)
-
-    # Apply colormap
-    cmap = plt.get_cmap('jet')
-    attention_heatmap = cmap(attention_img / 255.0)[:, :, :3] # Take only RGB channels
-
-    # Convert original image to numpy array
-    original_img_np = np.array(original_image) / 255.0 # Normalize to 0-1
-
-    # Blend images
-    blended_img = original_img_np * (1 - alpha) + attention_heatmap * alpha
-
-    plt.figure(figsize=(8, 8))
-    plt.imshow(blended_img)
-    plt.title(title)
-    plt.axis('off')
-    plt.show()
-
-print("\nVisualization of RT-DETR Cross-Attention Maps Overlaid on Image for Top 5 Queries:")
-for i, query_idx in enumerate(top_indices):
-    score = top_scores[i]
-    attn_map_2d = attention_maps[query_idx] # Shape: (3, 4)
-
-    # Find the predicted class label for this query.
-    pred_class_idx = probs[query_idx].argmax()
-    pred_class_label = model_detr.config.id2label[pred_class_idx.item()]
-
-    visualize_attention_map_on_image(
-        image, # The original PIL image
-        attn_map_2d,
-        title=f"Query {query_idx} | Pred: {pred_class_label} ({score:.2f}) Attention Map"
-    )
 ```
 
 <!-- #region -->
@@ -452,7 +458,7 @@ for name in unique_common_names:
                 else:
                     y_pred_yolo.append("No detection")
 
-                # --- Run RT-DETR detection ---
+                # --- Run DETR detection ---
                 inputs = processor_detr(images=img, return_tensors="pt")
                 with torch.no_grad():
                     outputs = model_detr(**inputs)
@@ -489,13 +495,13 @@ sns.heatmap(yolo_crosstab, annot=True, fmt='d', cmap='Blues')
 plt.title('ENA24 True Class vs. YOLO Predicted COCO Class')
 plt.show()
 
-# --- RT-DETR Crosstab ---
+# --- DETR Crosstab ---
 df_detr = pd.DataFrame({'y_true': y_true, 'y_pred': y_pred_detr})
-detr_crosstab = pd.crosstab(df_detr['y_true'], df_detr['y_pred'], rownames=['True Class (ENA24)'], colnames=['Predicted Class (RT-DETR/COCO)'])
+detr_crosstab = pd.crosstab(df_detr['y_true'], df_detr['y_pred'], rownames=['True Class (ENA24)'], colnames=['Predicted Class (DETR/COCO)'])
 
 plt.figure(figsize=(18, 14))
 sns.heatmap(detr_crosstab, annot=True, fmt='d', cmap='Greens')
-plt.title('ENA24 True Class vs. RT-DETR Predicted COCO Class')
+plt.title('ENA24 True Class vs. DETR Predicted COCO Class')
 plt.show()
 ```
 
@@ -504,9 +510,9 @@ From the heatmaps, we can see how the models perform. For example, both models o
 <!-- #endregion -->
 
 <!-- #region -->
-## 6. Head-to-Head Comparison: YOLO vs. RT-DETR
+## 6. Head-to-Head Comparison: YOLO vs. DETR
 
-| Feature               | YOLOv8                                        | RT-DETR                                                    |
+| Feature               | YOLOv8                                        | DETR                                                       |
 | --------------------- | --------------------------------------------- | ---------------------------------------------------------- |
 | **Architecture**      | CNN-based (CSPDarknet Backbone, PANet Neck)   | Hybrid (CNN Backbone + Transformer Encoder/Decoder)        |
 | **Prediction**        | Predicts on a dense grid across the image     | Predicts a sparse set of objects via object queries        |
@@ -520,7 +526,7 @@ From the heatmaps, we can see how the models perform. For example, both models o
 
 In this notebook, we explored two state-of-the-art object detection models.
 *   **YOLOv8** is incredibly fast and easy to use, making it an excellent choice for real-time applications where speed is critical. Its reliance on NMS is a defining characteristic of single-stage detectors.
-*   **RT-DETR** represents a newer paradigm, using a transformer architecture to perform end-to-end detection. This removes the need for hand-tuned components like NMS and can lead to better performance, though often at the cost of higher computational requirements and implementation complexity.
+*   **DETR** represents a newer paradigm, using a transformer architecture to perform end-to-end detection. This removes the need for hand-tuned components like NMS and can lead to better performance, though often at the cost of higher computational requirements and implementation complexity.
 
 Our analysis on the ENA24 dataset showed that while pretrained models are a fantastic starting point, their performance on specialized domains is limited by their training data. To achieve high accuracy on ENA24's specific animal classes, the clear next step is **fine-tuning**, where we would train these models further on the ENA24 data itself.
 <!-- #endregion -->
