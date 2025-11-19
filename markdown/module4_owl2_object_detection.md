@@ -334,7 +334,7 @@ print(f"Saved {len(class_names)} class names to {os.path.join(labels_base_dir, '
 
 
 # Take a sample of images for demonstration
-NUM_IMAGES_LABEL=500
+NUM_IMAGES_LABEL=1000
 sample_images = ena24_df.sample(NUM_IMAGES_LABEL, random_state=42) # Use a random state for reproducibility
 
 # Initialize accuracy tracker

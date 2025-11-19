@@ -212,10 +212,19 @@ for i, image_path_relative in enumerate(display_images):
         for i in top_indices:
             box = boxes[i] # Get the box object for the current index
             box_coords = box.xyxy[0].cpu().numpy()
+            class_id = int(box.cls[0].cpu().numpy())
+            confidence = float(box.conf[0].cpu().numpy())
+            class_name = yolo_model.names[class_id]
+            label = f"{class_name} {confidence:.2f}"
             
             # Draw the YOLO box on both plots for comparison
             show_box(box_coords, ax1)
             show_box(box_coords, ax2)
+
+            # Add label to the boxes
+            x0, y0 = box_coords[0], box_coords[1]
+            ax1.text(x0, y0 - 10, label, color='white', fontsize=8, backgroundcolor='green')
+            ax2.text(x0, y0 - 10, label, color='white', fontsize=8, backgroundcolor='green')
 
             # --- 2. Use Box as Prompt for SAM ---
             # The input box needs to be a numpy array

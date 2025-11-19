@@ -126,7 +126,7 @@ If the `ena24_yolo_dataset.yaml` was created successfully, we can proceed with t
 model = YOLO('../yolov8n.pt')
 
 # Train the model
-results = model.train(data='ena24_yolo_dataset.yaml', epochs=10, imgsz=640, batch=4)
+results = model.train(data='ena24_yolo_dataset.yaml', epochs=100, imgsz=640, batch=4)
 ```
 
 
