@@ -41,6 +41,11 @@ Now, let's import all the required modules.
 
 ```python
 import torch
+
+# Set the device
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(f"Using device: {device}")
+
 from datasets import load_dataset
 from PIL import Image, ImageDraw, ImageFont
 from IPython.display import display
@@ -52,6 +57,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.decomposition import PCA
 import cv2
+import tqdm
 
 # YOLO imports
 from ultralytics import YOLO
@@ -87,7 +93,7 @@ The model is pretrained on the COCO dataset, a large-scale object detection data
 
 ```python
 # Load a pretrained YOLOv8 model
-model_yolo = YOLO('../yolov8n.pt')
+model_yolo = YOLO('../yolov8n.pt').to(device)
 
 # Run inference on a copy of the image
 results_yolo = model_yolo(image.copy(), conf=0.5)
@@ -216,10 +222,10 @@ We will use the `transformers` library to load a pretrained DETR model. Unlike Y
 ```python
 # Load the processor and a pretrained DETR model from Hugging Face
 processor_detr = DetrImageProcessor.from_pretrained("facebook/detr-resnet-50", revision="no_timm")
-model_detr = DetrForObjectDetection.from_pretrained("facebook/detr-resnet-50", revision="no_timm")
+model_detr = DetrForObjectDetection.from_pretrained("facebook/detr-resnet-50", revision="no_timm").to(device)
 
 # Prepare the image for the model
-inputs = processor_detr(images=image, return_tensors="pt")
+inputs = processor_detr(images=image, return_tensors="pt").to(device)
 
 # Run inference
 with torch.no_grad():
@@ -227,7 +233,7 @@ with torch.no_grad():
 
 # Post-process the results to get bounding boxes and class labels
 # We set a low threshold to get all potential detections, then we'll select the top 3.
-target_sizes = torch.tensor([image.size[::-1]])
+target_sizes = torch.tensor([image.size[::-1]]).to(device)
 results_detr = processor_detr.post_process_object_detection(outputs, target_sizes=target_sizes, threshold=0.1)[0]
 
 # Helper function to draw bounding boxes
@@ -459,11 +465,11 @@ for name in unique_common_names:
                     y_pred_yolo.append("No detection")
 
                 # --- Run DETR detection ---
-                inputs = processor_detr(images=img, return_tensors="pt")
+                inputs = processor_detr(images=img, return_tensors="pt").to(device)
                 with torch.no_grad():
                     outputs = model_detr(**inputs)
                 
-                target_sizes = torch.tensor([img.size[::-1]])
+                target_sizes = torch.tensor([img.size[::-1]]).to(device)
                 results_detr = processor_detr.post_process_object_detection(outputs, target_sizes=target_sizes, threshold=0.25)[0]
                 
                 if len(results_detr["scores"]) > 0:
@@ -502,6 +508,96 @@ detr_crosstab = pd.crosstab(df_detr['y_true'], df_detr['y_pred'], rownames=['Tru
 plt.figure(figsize=(18, 14))
 sns.heatmap(detr_crosstab, annot=True, fmt='d', cmap='Greens')
 plt.title('ENA24 True Class vs. DETR Predicted COCO Class')
+plt.show()
+```
+
+<!-- #region -->
+### 5.4. Evaluating DETR with a ROC Curve
+
+To dig deeper into DETR's performance, we can generate a Receiver Operating Characteristic (ROC) curve. This will help us quantify how well the model can distinguish between a target class and other classes based on its confidence scores.
+
+Since the ENA24 `bird` class has a direct counterpart in the COCO dataset, we can formulate a binary classification problem:
+*   **Positive Class**: Images from ENA24 labeled as `bird`.
+*   **Negative Class**: Images of all other animals in our ENA24 sample.
+*   **Prediction Score**: For each image, we take the highest score that DETR assigns to the COCO `bird` class across all of its object queries.
+
+The resulting ROC curve shows the trade-off between the True Positive Rate (correctly identifying birds) and the False Positive Rate (incorrectly labeling other animals as birds) at various confidence thresholds.
+<!-- #endregion -->
+
+```python
+# Import necessary functions for ROC curve
+from sklearn.metrics import roc_curve, auc
+
+# We will evaluate DETR's ability to distinguish the 'bird' class from other animals.
+# Positives: Images of birds from ENA24
+# Negatives: Images of other animals from ENA24
+# Score: The model's maximum confidence score for the COCO 'bird' class.
+
+ground_truth = []
+prediction_scores = []
+
+# Find the class ID for 'bird' in the DETR model's config
+bird_class_id = None
+for k, v in model_detr.config.id2label.items():
+    if v == 'bird':
+        bird_class_id = k
+        break
+
+print(f"COCO 'bird' class ID: {bird_class_id}")
+
+if bird_class_id is None:
+    raise Exception("Bird class not found")
+
+print("Generating scores for ROC curve...")
+for name in tqdm.tqdm(unique_common_names):
+    sample_images = ena24_df[ena24_df['common_name'] == name].head(20)
+    
+    for index, row in sample_images.iterrows():
+        image_relative_path = row['filepath']
+        full_image_path = os.path.join(base_data_path, 'data/test/', image_relative_path)
+        
+        if os.path.exists(full_image_path):
+            try:
+                img = Image.open(full_image_path).convert("RGB")
+                
+                # Define ground truth: 1 if bird, 0 otherwise
+                is_bird = 1 if name in ['american crow', 'domestic chicken', 'wild turkey'] else 0
+                ground_truth.append(is_bird)
+
+                # --- Get DETR score for the 'bird' class ---
+                inputs = processor_detr(images=img, return_tensors="pt").to(device)
+                with torch.no_grad():
+                    outputs = model_detr(**inputs)
+                
+                # Get probabilities for all classes (excluding 'no object')
+                probs = outputs.logits.softmax(-1)[0, :, :-1]
+                
+                # Get the scores for the 'bird' class across all object queries
+                bird_scores = probs[:, bird_class_id]
+                
+                # The final score is the maximum score for 'bird' in this image
+                max_bird_score = bird_scores.max().item()
+                prediction_scores.append(max_bird_score)
+                # print(name, index, max_bird_score, is_bird)
+
+            except Exception as e:
+                print(f"Could not process image {full_image_path}: {e}")
+
+print("Finished generating scores.")
+
+# --- Calculate and Plot ROC Curve ---
+fpr, tpr, thresholds = roc_curve(ground_truth, prediction_scores)
+roc_auc = auc(fpr, tpr)
+
+plt.figure(figsize=(8, 8))
+plt.plot(fpr, tpr, color='darkorange', lw=2, label=f'ROC curve (area = {roc_auc:.2f})')
+plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')
+plt.xlim([0.0, 1.0])
+plt.ylim([0.0, 1.05])
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive Rate')
+plt.title('DETR ROC Curve for "bird" class detection on ENA24')
+plt.legend(loc="lower right")
 plt.show()
 ```
 
