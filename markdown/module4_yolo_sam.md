@@ -24,6 +24,7 @@ First, we will use our custom-trained YOLO model to predict a bounding box for a
 While a bounding box tells us *where* an animal is, a segmentation mask provides a much richer understanding of the object.
 *   **Precise Shape and Size**: Masks outline the exact shape of an animal, allowing for more accurate measurements of size, length, and potentially biomass estimation.
 *   **Detailed Analysis**: With a precise silhouette, we can perform more detailed analyses, such as pose estimation, identifying specific body parts, or assessing animal health (e.g., whether it looks thin or well-fed).
+*   **Ecological Monitoring**: Segmentation masks are crucial for large-scale ecological studies. They enable tracking individual animals across different camera trap sightings, which is essential for estimating population density, understanding territory ranges, and studying migration patterns. The precise outline helps in re-identifying individuals based on unique markings (like stripe or spot patterns).
 *   **Occlusion and Crowds**: Segmentation can help distinguish between individual animals that are overlapping or close together, which is difficult with bounding boxes alone.
 *   **Improved Data Quality**: Using masks instead of boxes to train downstream models (like species classifiers) can improve their accuracy by removing noisy background pixels.
 
@@ -136,9 +137,9 @@ print(f"Found {len(val_images)} validation images.")
 
 Now we'll tie everything together. For each image, we will:
 1.  Run our fine-tuned YOLO model to get bounding boxes.
-2.  Take the highest-confidence bounding box as the prompt.
-3.  Use the SAM Predictor to generate a mask from that box prompt.
-4.  Visualize the original image, the YOLO box, and the final SAM mask.
+2.  Take the top three highest-confidence bounding boxes as prompts.
+3.  For each box, use the SAM Predictor to generate a mask.
+4.  Visualize the original image, the YOLO boxes, and the final SAM masks.
 
 First, let's define a couple of helper functions for visualization.
 <!-- #endregion -->
@@ -197,32 +198,40 @@ for i, image_path_relative in enumerate(display_images):
     ax2.axis('off')
     
     if len(yolo_results[0].boxes) > 0:
-        # Get the box with the highest confidence
-        best_box = yolo_results[0].boxes[yolo_results[0].boxes.conf.argmax()]
-        box_coords = best_box.xyxy[0].cpu().numpy()
-        
-        # Draw the YOLO box on both plots for comparison
-        show_box(box_coords, ax1)
-        show_box(box_coords, ax2)
-
-        # --- 2. Use Box as Prompt for SAM ---
-        # Set the image for the predictor
+        # Set the image for the predictor once
         predictor.set_image(image_rgb)
+
+        # Get top 3 boxes by confidence
+        boxes = yolo_results[0].boxes
+        confidences = boxes.conf
+        indices = torch.argsort(confidences, descending=True)
+        top_indices = indices[:3]
         
-        # The input box needs to be a numpy array
-        input_box = box_coords.astype(int)
+        print(f"  Found {len(boxes)} objects. Segmenting top {len(top_indices)}.")
 
-        # Predict the mask
-        masks, scores, logits = predictor.predict(
-            point_coords=None,
-            point_labels=None,
-            box=input_box[None, :],
-            multimask_output=False,
-        )
+        for i in top_indices:
+            box = boxes[i] # Get the box object for the current index
+            box_coords = box.xyxy[0].cpu().numpy()
+            
+            # Draw the YOLO box on both plots for comparison
+            show_box(box_coords, ax1)
+            show_box(box_coords, ax2)
 
-        # --- 3. Visualize the Mask ---
-        # masks is a (1, H, W) array, so we take the first one
-        show_mask(masks[0], ax2, random_color=True)
+            # --- 2. Use Box as Prompt for SAM ---
+            # The input box needs to be a numpy array
+            input_box = box_coords.astype(int)
+
+            # Predict the mask
+            masks, scores, logits = predictor.predict(
+                point_coords=None,
+                point_labels=None,
+                box=input_box[None, :],
+                multimask_output=False,
+            )
+
+            # --- 3. Visualize the Mask ---
+            # masks is a (1, H, W) array, so we take the first one
+            show_mask(masks[0], ax2, random_color=True)
     else:
         print(f"  No objects detected by YOLO in {os.path.basename(image_path_abs)}")
         ax1.set_title(f"YOLO: No Detections in {os.path.basename(image_path_abs)}")
