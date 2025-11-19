@@ -29,6 +29,7 @@ Now, let's import the required libraries.
 
 ```python
 import os
+#os.environ['YOLO_VERBOSE'] = 'False'
 import yaml
 from ultralytics import YOLO
 from PIL import Image
@@ -126,7 +127,7 @@ If the `ena24_yolo_dataset.yaml` was created successfully, we can proceed with t
 model = YOLO('../yolov8n.pt')
 
 # Train the model
-results = model.train(data='ena24_yolo_dataset.yaml', epochs=100, imgsz=640, batch=4)
+results = model.train(data='ena24_yolo_dataset.yaml', epochs=100, imgsz=640, batch=8, fliplr=0.5, translate=0.1, scale=0.5)
 ```
 
 
