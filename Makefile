@@ -44,7 +44,9 @@ compress_notebooks:
 
 clean:
 	rm -Rf yolov8n.pt
+	rm -Rf notebooks_executed/*.ipynb
 	rm -Rf notebooks_executed/runs
 	rm -Rf notebooks_executed/yolo11n.pt
 	rm -Rf notebooks_executed/ena24_yolo_dataset.yaml
 	rm -Rf notebooks_executed_html
+	rm -Rf data/IDLE-OO-Camera-Traps_yolo
