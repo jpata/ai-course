@@ -10,3 +10,14 @@ ultralytics
 scikit-learn
 papermill
 seaborn
+timm
+torchvision
+Pillow
+requests
+pandas
+numpy
+opencv-python
+tqdm
+scipy
+pyyaml
+segment-anything

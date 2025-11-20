@@ -75,7 +75,8 @@ YOLO models require a `dataset.yaml` file that specifies the dataset paths and c
 import glob
 from sklearn.model_selection import train_test_split
 
-# --- Find all labeled images and create train.txt and val.txt ---
+# --- Step 1: Find all labeled images and their corresponding labels ---
+# Define base paths for the YOLO dataset directory
 base_path = os.path.abspath('../data/IDLE-OO-Camera-Traps_yolo')
 labels_dir = os.path.join(base_path, 'labels')
 images_dir = os.path.join(base_path, 'images')
@@ -83,50 +84,63 @@ train_file_path = os.path.join(base_path, 'train.txt')
 val_file_path = os.path.join(base_path, 'val.txt')
 image_files = []
 
-# Recursively find all .txt files in the labels directory, excluding classes.txt
+# Use glob to recursively find all .txt label files, excluding 'classes.txt'
 label_files = [f for f in glob.glob(os.path.join(labels_dir, '**/*.txt'), recursive=True) if os.path.basename(f) != 'classes.txt']
 
+# For each label file, find the corresponding image file
 for label_file in label_files:
-    # Derive the corresponding image path, assuming .png extension
+    # Construct the expected image path by replacing 'labels' with 'images' and '.txt' with '.png'
+    # This assumes a parallel directory structure and matching filenames.
     image_path = label_file.replace("/labels/", "/images/").replace(".txt", ".png")
+    # If the corresponding image exists, add it to our list of available image files
     if os.path.exists(image_path):
         image_files.append(image_path)
 
 if not image_files:
     raise Exception("No labeled images found. 'train.txt' and 'val.txt' were not created.")
 
-# Split the data into training and validation sets (80% train, 20% val)
+# --- Step 2: Split data into training and validation sets ---
+# Use scikit-learn's train_test_split to randomly divide the image files.
+# 80% of the data will be for training, 20% for validation.
+# `random_state` ensures the split is the same every time the code is run.
 train_images, val_images = train_test_split(image_files, test_size=0.2, random_state=42)
 
-# Write the relative paths of labeled images to train.txt
+# --- Step 3: Create train.txt and val.txt files ---
+# YOLO can use .txt files that list the absolute paths to training and validation images.
+# Write the paths of the training images to train.txt
 with open(train_file_path, 'w') as f:
     for image_path in train_images:
         f.write(f"{image_path}\n")
 print(f"Found {len(image_files)} labeled images.")
 print(f"Created '{train_file_path}' with {len(train_images)} images for training.")
 
-# Write the relative paths of labeled images to val.txt
+# Write the paths of the validation images to val.txt
 with open(val_file_path, 'w') as f:
     for image_path in val_images:
         f.write(f"{image_path}\n")
 print(f"Created '{val_file_path}' with {len(val_images)} images for validation.")
 
 
-# --- Create dataset.yaml ---
+# --- Step 4: Create the dataset.yaml file ---
+# This configuration file tells YOLO where to find the dataset and what the class names are.
 dataset_config = {
-    'path': os.path.abspath(base_path), # Use absolute path
-    'train': 'train.txt',
-    'val': 'val.txt',
-    'names': {}
+    'path': os.path.abspath(base_path), # The root directory of the dataset
+    'train': 'train.txt',               # Path to the training images list, relative to 'path'
+    'val': 'val.txt',                   # Path to the validation images list, relative to 'path'
+    'names': {}                         # A dictionary mapping class indices to class names
 }
+# Read the class names from the 'classes.txt' file created in the previous notebook.
 classes_path = os.path.join(os.path.dirname(labels_dir), 'classes.txt')
 with open(classes_path, 'r') as f:
     classes = [line.strip() for line in f.readlines()]
+    # Create the mapping {0: 'class_a', 1: 'class_b', ...}
     dataset_config['names'] = {i: name for i, name in enumerate(classes)}
 
+# Write the configuration dictionary to a YAML file.
 with open('ena24_yolo_dataset.yaml', 'w') as f:
     yaml.dump(dataset_config, f)
 
+# Print the contents of the created YAML file for verification.
 print("\nena24_yolo_dataset.yaml created:")
 with open('ena24_yolo_dataset.yaml', 'r') as f:
     print(f.read())
@@ -145,8 +159,16 @@ If the `ena24_yolo_dataset.yaml` was created successfully, we can proceed with t
 # Load a pretrained YOLO model
 model = YOLO('../yolov8n.pt')
 
-# Train the model
-results = model.train(data='ena24_yolo_dataset.yaml', epochs=100, imgsz=640, batch=8, fliplr=0.5, translate=0.1, scale=0.5)
+# Train the model on our custom dataset
+results = model.train(
+    data='ena24_yolo_dataset.yaml',  # Path to our dataset configuration file
+    epochs=100,                     # Number of times to iterate over the entire dataset
+    imgsz=640,                      # Resize all images to 640x640 before feeding them to the model
+    batch=8,                        # Number of images to process in a single batch
+    fliplr=0.5,                     # Augmentation: randomly flip images horizontally 50% of the time
+    translate=0.1,                  # Augmentation: randomly translate images by up to 10%
+    scale=0.5                       # Augmentation: randomly scale (zoom in/out) images by up to 50%
+)
 ```
 
 
@@ -155,15 +177,22 @@ results = model.train(data='ena24_yolo_dataset.yaml', epochs=100, imgsz=640, bat
 <!-- #endregion -->
 
 ```python
-# Find the latest training directory
+# Find the latest training directory in the 'runs/detect' folder
 train_dir = 'runs/detect'
 latest_train_run = max(os.listdir(train_dir), key=lambda d: os.path.getmtime(os.path.join(train_dir, d)))
+# Construct the path to the results.csv file, which contains training metrics for each epoch
 results_csv_path = os.path.join(train_dir, latest_train_run, 'results.csv')
 
 print(f"Loading training results from: {results_csv_path}")
+# Load the training results into a pandas DataFrame
 results_df = pd.read_csv(results_csv_path)
 
+# Plot the training and validation loss curves
 fig = plt.figure(figsize=(12, 6))
+# The total loss is the sum of three components:
+# - box_loss: Bounding box regression loss (how well the model predicts box coordinates)
+# - cls_loss: Classification loss (how well the model predicts the correct class)
+# - dfl_loss: Distribution Focal Loss (a more advanced loss for box regression)
 plt.plot(results_df['epoch'], results_df['train/box_loss']+results_df['train/cls_loss']+results_df['train/dfl_loss'], label='Train Loss')
 plt.plot(results_df['epoch'], results_df['val/box_loss']+results_df['val/cls_loss']+results_df['val/dfl_loss'], label='Val Loss')
 plt.xlabel('Epoch')

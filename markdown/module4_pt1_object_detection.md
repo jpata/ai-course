@@ -19,15 +19,21 @@ import os
 IN_COLAB = 'google.colab' in sys.modules
 if IN_COLAB:
     from google.colab import drive
+    # Mount Google Drive to persist files and access data
     drive.mount('/content/drive/')
 
+    # Create a directory for the AI course in Google Drive
     %mkdir -p /content/drive/MyDrive/ai-course
+    # Change the current working directory to the new course directory
     %cd /content/drive/MyDrive/ai-course
 
+    # If the course repository doesn't exist, clone it from GitHub
     if not os.path.exists('ai-course'):
         !git clone https://github.com/jpata/ai-course
     
+    # Change directory into the cloned repository
     %cd ai-course
+    # Pull the latest changes from the repository to ensure it's up-to-date
     !git pull
 ```
 
@@ -120,7 +126,8 @@ The model is pretrained on the COCO dataset, a large-scale object detection data
 # Load a pretrained YOLOv8 model
 model_yolo = YOLO('../yolov8n.pt').to(device)
 
-# Run inference on a copy of the image
+# Run inference on a copy of the image, with a confidence threshold of 0.5
+# This means only detections with a confidence score > 0.5 will be returned
 results_yolo = model_yolo(image.copy(), conf=0.5)
 
 # The `plot()` method conveniently draws the detected boxes on the image
@@ -246,22 +253,24 @@ We will use the `transformers` library to load a pretrained DETR model. Unlike Y
 
 ```python
 # Load the processor and a pretrained DETR model from Hugging Face
+# The `revision="no_timm"` flag is used to ensure compatibility and avoid potential conflicts with the timm library.
 processor_detr = DetrImageProcessor.from_pretrained("facebook/detr-resnet-50", revision="no_timm")
 model_detr = DetrForObjectDetection.from_pretrained("facebook/detr-resnet-50", revision="no_timm").to(device)
 
-# Prepare the image for the model
+# Prepare the image for the model by resizing and normalizing it
 inputs = processor_detr(images=image, return_tensors="pt").to(device)
 
 # Run inference
 with torch.no_grad():
     outputs = model_detr(**inputs)
 
-# Post-process the results to get bounding boxes and class labels
-# We set a low threshold to get all potential detections, then we'll select the top 3.
+# Post-process the results to get bounding boxes and class labels.
+# The `target_sizes` tensor is needed to scale the bounding boxes back to the original image size.
+# We set a low threshold to get all potential detections, which we will filter later.
 target_sizes = torch.tensor([image.size[::-1]]).to(device)
 results_detr = processor_detr.post_process_object_detection(outputs, target_sizes=target_sizes, threshold=0.1)[0]
 
-# Helper function to draw bounding boxes
+# Helper function to draw bounding boxes on an image
 def draw_boxes(image, boxes, labels, scores):
     img_draw = image.copy()
     draw = ImageDraw.Draw(img_draw)
@@ -278,17 +287,20 @@ scores = results_detr["scores"]
 labels = results_detr["labels"]
 boxes = results_detr["boxes"]
 
+# Define how many of the top detections to show
 TOP_K = 3
 k = min(len(scores), TOP_K)
 
+# Get the top k scores and their corresponding indices
 scores, indices = torch.topk(scores, k)
+# Filter the labels and boxes to keep only the top k
 labels = labels[indices]
 boxes = boxes[indices]
 
-# Convert label IDs to names
+# Convert label IDs to human-readable class names
 labels = [model_detr.config.id2label[i.item()] for i in labels]
 
-# Draw the boxes on the image
+# Draw the final boxes on the image
 im_detr = draw_boxes(image, boxes, labels, scores)
 
 print(f"DETR Top {k} Detections:")
@@ -320,8 +332,6 @@ This design is "end-to-end" because it directly outputs a sparse set of predicti
 
 <!-- #endregion -->
 
-#### Visualizing Attention Maps
-
 ```python
 # --- STEP 1: INFERENCE WITH ATTENTIONS ---
 # We must request output_attentions=True to get the internal weights
@@ -330,8 +340,11 @@ with torch.no_grad():
     outputs = model_detr(**inputs, output_attentions=True)
     
     # 1. Get Probabilities and Top K
+    # Convert logits to probabilities and remove the "no object" class
     probs = outputs.logits.softmax(-1)[0, :, :-1]
+    # For each of the 100 object queries, find the class with the highest probability
     max_scores, class_ids = probs.max(-1)
+    # Select the top 3 queries with the highest overall confidence scores
     TOP_K = 3
     top_scores, top_idxs = torch.topk(max_scores, TOP_K)
 
@@ -346,7 +359,7 @@ cross_attentions = outputs.cross_attentions[-1]
 # Get input image dimensions
 img_h, img_w = inputs['pixel_values'].shape[-2:]
 
-# Prepare background image for visualization
+# Prepare background image for visualization by un-normalizing it
 img_tensor = inputs['pixel_values'][0].detach().cpu()
 mean = torch.tensor([0.485, 0.456, 0.406]).view(3, 1, 1)
 std = torch.tensor([0.229, 0.224, 0.225]).view(3, 1, 1)
@@ -357,6 +370,7 @@ rgb_img_base = np.clip(rgb_img_base, 0, 1)
 fig, axes = plt.subplots(1, TOP_K, figsize=(20, 6))
 if TOP_K == 1: axes = [axes]
 
+# Iterate through the top K queries and visualize their attention maps
 for i, query_idx_tensor in enumerate(top_idxs):
     query_idx = query_idx_tensor.item()
     class_id = class_ids[query_idx].item()
@@ -369,19 +383,18 @@ for i, query_idx_tensor in enumerate(top_idxs):
     # Shape: [Batch, Heads, Queries, Seq] -> [Heads, Seq]
     attn_map = cross_attentions[0, :, query_idx, :]
     
-    # 2. Average over Attention Heads
+    # 2. Average over Attention Heads to get a single map
     # Shape: [Seq]
     attn_map = attn_map.mean(dim=0).detach().cpu()
 
     # 3. Reshape Sequence back to 2D Feature Map
-    # We infer the feature map size (H/32, W/32)
+    # We infer the feature map size (H/32, W/32) from the original image size
     feat_h = int(np.ceil(img_h / 32))
     feat_w = int(np.ceil(img_w / 32))
     
-    # Handle potential mismatch due to padding/rounding
+    # Handle potential mismatch due to padding/rounding during feature extraction
     num_patches = feat_h * feat_w
     # DETR sometimes pads the mask, so we strictly reshape to what matches the sequence length
-    # If exact match isn't possible, we calculate approximate square side
     if attn_map.shape[0] != num_patches:
        # Fallback for edge cases: assume roughly square aspect ratio
        side = int(attn_map.shape[0]**0.5)
@@ -390,21 +403,22 @@ for i, query_idx_tensor in enumerate(top_idxs):
     attn_map = attn_map.reshape(feat_h, feat_w).numpy()
 
     # 4. Process for Visualization
-    # Resize to original image size
+    # Upscale the small attention map to the original image size for overlay
     attn_map = cv2.resize(attn_map, (img_w, img_h))
     
-    # Normalize 0-1
+    # Normalize the map to a 0-1 range for visualization
     attn_map = (attn_map - attn_map.min()) / (attn_map.max() - attn_map.min())
     
-    # Apply ColorMap
+    # Apply a colormap to create a heatmap
     heatmap = np.uint8(255 * attn_map)
     heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)
     
-    # Overlay
+    # Overlay the heatmap on the original image
     visualization = cv2.addWeighted(np.uint8(255 * rgb_img_base), 0.6, heatmap, 0.4, 0)
 
-    # 5. Draw Box
+    # 5. Draw the Predicted Bounding Box
     pred_box = outputs.pred_boxes[0, query_idx].detach().cpu().numpy()
+    # Convert normalized box coordinates [cx, cy, w, h] to pixel coordinates [x1, y1, x2, y2]
     cx, cy, w_box, h_box = pred_box
     x1 = int((cx - w_box / 2) * img_w)
     y1 = int((cy - h_box / 2) * img_h)
@@ -413,7 +427,7 @@ for i, query_idx_tensor in enumerate(top_idxs):
 
     cv2.rectangle(visualization, (x1, y1), (x2, y2), (255, 255, 255), 2)
     
-    # Label
+    # Add the class label and score to the visualization
     label_text = f"{label_name} {score:.2f}"
     cv2.putText(visualization, label_text, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
 
@@ -460,6 +474,7 @@ We will now iterate through a sample of the ENA24 dataset, run both models on ea
 <!-- #endregion -->
 
 ```python
+# Initialize lists to store true labels and predicted labels for both models
 y_true = []
 y_pred_yolo = []
 y_pred_detr = []
@@ -468,9 +483,12 @@ y_pred_detr = []
 num_samples_per_class = 5
 unique_common_names = ena24_df['common_name'].unique()
 
+# Iterate over each unique animal class in the dataset
 for name in unique_common_names:
+    # Get a small sample of images for the current class
     sample_images = ena24_df[ena24_df['common_name'] == name].head(num_samples_per_class)
     
+    # Process each image in the sample
     for index, row in sample_images.iterrows():
         image_relative_path = row['filepath']
         full_image_path = os.path.join(base_data_path, 'data/test/', image_relative_path)
@@ -478,15 +496,21 @@ for name in unique_common_names:
         if os.path.exists(full_image_path):
             try:
                 img = Image.open(full_image_path).convert("RGB")
+                # Store the ground truth class name
                 y_true.append(name)
 
                 # --- Run YOLO detection ---
+                # Run inference with a confidence threshold of 0.25
                 results_yolo = model_yolo(img.copy(), conf=0.25, verbose=False)
+                # Check if any objects were detected
                 if len(results_yolo[0].boxes) > 0:
+                    # Get the class ID of the top prediction
                     top_pred_id = int(results_yolo[0].boxes.cls[0].item())
+                    # Get the corresponding class name
                     predicted_name = model_yolo.names[top_pred_id]
                     y_pred_yolo.append(predicted_name)
                 else:
+                    # If no objects are detected, record it
                     y_pred_yolo.append("No detection")
 
                 # --- Run DETR detection ---
@@ -494,14 +518,19 @@ for name in unique_common_names:
                 with torch.no_grad():
                     outputs = model_detr(**inputs)
                 
+                # Post-process the results with a confidence threshold of 0.25
                 target_sizes = torch.tensor([img.size[::-1]]).to(device)
                 results_detr = processor_detr.post_process_object_detection(outputs, target_sizes=target_sizes, threshold=0.25)[0]
                 
+                # Check if any objects were detected
                 if len(results_detr["scores"]) > 0:
+                    # Get the class ID of the top prediction
                     top_pred_id = results_detr["labels"][0].item()
+                    # Get the corresponding class name
                     predicted_name = model_detr.config.id2label[top_pred_id]
                     y_pred_detr.append(predicted_name)
                 else:
+                    # If no objects are detected, record it
                     y_pred_detr.append("No detection")
 
             except Exception as e:
@@ -564,12 +593,14 @@ prediction_scores_yolo = []
 
 # --- Find class IDs for 'bird' in both models ---
 detr_bird_class_id = None
+# Iterate through the DETR model's class labels to find the ID for 'bird'
 for k, v in model_detr.config.id2label.items():
     if v == 'bird':
         detr_bird_class_id = k
         break
 
 yolo_bird_class_id = None
+# Iterate through the YOLO model's class names to find the ID for 'bird'
 for k, v in model_yolo.names.items():
     if v == 'bird':
         yolo_bird_class_id = k
@@ -582,6 +613,7 @@ if detr_bird_class_id is None or yolo_bird_class_id is None:
     raise Exception("Bird class not found in one of the models")
 
 print("Generating scores for ROC curve...")
+# Use tqdm to show a progress bar while iterating through classes
 for name in tqdm.tqdm(unique_common_names):
     # Using a larger sample for a more robust curve
     sample_images = ena24_df[ena24_df['common_name'] == name].head(20)
@@ -594,7 +626,7 @@ for name in tqdm.tqdm(unique_common_names):
             try:
                 img = Image.open(full_image_path).convert("RGB")
                 
-                # Define ground truth: 1 if bird, 0 otherwise
+                # Define ground truth: 1 if the image contains a bird, 0 otherwise
                 is_bird = 1 if name in ['american crow', 'domestic chicken', 'wild turkey'] else 0
                 ground_truth.append(is_bird)
 
@@ -603,8 +635,11 @@ for name in tqdm.tqdm(unique_common_names):
                 with torch.no_grad():
                     outputs = model_detr(**inputs)
                 
+                # Get probabilities for all classes and queries
                 probs = outputs.logits.softmax(-1)[0, :, :-1]
+                # Specifically get the scores for the 'bird' class across all queries
                 bird_scores = probs[:, detr_bird_class_id]
+                # The final score is the maximum 'bird' score among all queries
                 max_bird_score_detr = bird_scores.max().item()
                 prediction_scores_detr.append(max_bird_score_detr)
 
@@ -613,11 +648,11 @@ for name in tqdm.tqdm(unique_common_names):
                 results_yolo = model_yolo(img.copy(), conf=0.01, verbose=False)
                 boxes = results_yolo[0].boxes
                 
-                # Find detections corresponding to the 'bird' class
+                # Find all detections corresponding to the 'bird' class
                 bird_detections = boxes[boxes.cls == yolo_bird_class_id]
                 
                 if len(bird_detections) > 0:
-                    # Get the highest confidence score among all bird detections
+                    # Get the highest confidence score among all 'bird' detections
                     max_bird_score_yolo = bird_detections.conf.max().item()
                 else:
                     # If no bird was detected, the score is 0
@@ -630,7 +665,10 @@ for name in tqdm.tqdm(unique_common_names):
 print("Finished generating scores.")
 
 # --- Calculate ROC Curve for DETR ---
+# roc_curve computes the receiver operating characteristic curve, or ROC curve.
+# It returns the false positive rate (fpr), true positive rate (tpr), and the thresholds used to calculate them.
 fpr_detr, tpr_detr, thresholds_detr = roc_curve(ground_truth, prediction_scores_detr)
+# auc (Area Under Curve) computes the area under the ROC curve, a single value summarizing the model's performance.
 roc_auc_detr = auc(fpr_detr, tpr_detr)
 
 # --- Calculate ROC Curve for YOLO ---
@@ -653,9 +691,10 @@ tpr_at_0_9_yolo = tpr_yolo[idx_yolo]
 plt.figure(figsize=(8, 8))
 plt.plot(fpr_detr, tpr_detr, color='darkorange', lw=2, label=f'DETR ROC curve (area = {roc_auc_detr:.2f})')
 plt.plot(fpr_yolo, tpr_yolo, color='cornflowerblue', lw=2, label=f'YOLO ROC curve (area = {roc_auc_yolo:.2f})')
+# Plot the diagonal line representing a random guesser
 plt.plot([0, 1], [0, 1], color='navy', lw=1, linestyle='--')
 
-# Plot the specific points at confidence 0.9
+# Plot the specific points at confidence 0.9 for both models
 plt.scatter(fpr_at_0_9_detr, tpr_at_0_9_detr, color='darkorange', marker='o', s=100,
             label=f'DETR @ 0.9 conf (FPR: {fpr_at_0_9_detr:.2f}, TPR: {tpr_at_0_9_detr:.2f})', zorder=5)
 plt.scatter(fpr_at_0_9_yolo, tpr_at_0_9_yolo, color='cornflowerblue', marker='o', s=100,

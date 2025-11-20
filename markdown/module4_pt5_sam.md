@@ -95,12 +95,15 @@ We will load the `best.pt` weights from the latest YOLO training run performed i
 # Path to the directory where training runs are saved
 train_dir = 'runs/detect'
 
-# Find the latest training directory
+# Find all subdirectories in the training directory that correspond to training runs
 train_dirs = [d for d in os.listdir(train_dir) if "train" in d]
+# Find the latest training run directory by sorting them by modification time
 latest_train_run = max(train_dirs, key=lambda d: os.path.getmtime(os.path.join(train_dir, d)))
+# Construct the full path to the best model weights from that training run
 best_model_path = os.path.join(train_dir, latest_train_run, 'weights/best.pt')
 
 print(f"Loading fine-tuned YOLO model from: {best_model_path}")
+# Load the fine-tuned YOLO model
 yolo_model = YOLO(best_model_path)
 ```
 
@@ -113,13 +116,15 @@ We will use the large ViT-H SAM model. The code below will download the model ch
 <!-- #endregion -->
 
 ```python
+# Define the path for the SAM checkpoint, the model type, and the download URL
 sam_checkpoint_path = "sam_vit_h_4b8939.pth"
-model_type = "vit_h"
+model_type = "vit_h" # "vit_h" is the largest and most accurate SAM model
 sam_checkpoint_url = "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth"
 
-# Download the SAM checkpoint if it doesn't exist
+# Download the SAM checkpoint file if it doesn't already exist
 if not os.path.exists(sam_checkpoint_path):
     print("Downloading SAM checkpoint...")
+    # Stream the download to handle large files efficiently
     response = requests.get(sam_checkpoint_url, stream=True)
     with open(sam_checkpoint_path, "wb") as f:
         for chunk in response.iter_content(chunk_size=1024):
@@ -127,11 +132,12 @@ if not os.path.exists(sam_checkpoint_path):
                 f.write(chunk)
     print("Download complete.")
 
-# Load the SAM model
+# Register the SAM model from the checkpoint file and model type
 sam = sam_model_registry[model_type](checkpoint=sam_checkpoint_path)
+# Move the model to the specified device (GPU if available)
 sam.to(device=device)
 
-# Create the SAM predictor
+# Create the SamPredictor object. This object handles the image encoding and mask prediction.
 predictor = SamPredictor(sam)
 ```
 
@@ -186,87 +192,102 @@ Now, let's process a few sample images and see the results.
 <!-- #endregion -->
 
 ```python
-# Select up to 10 images to display
+# Select up to 10 images from the validation set to display
 num_display_images = min(len(val_images), 10)
 display_images = val_images[:num_display_images]
 
+# Create a figure with two columns of subplots: one for YOLO boxes, one for SAM masks
 fig, axs = plt.subplots(num_display_images, 2, figsize=(15, 5 * num_display_images))
 
-for i, image_path_relative in enumerate(display_images):
-    image_path_abs = os.path.join(base_path, image_path_relative)
-    print(f"Processing: {os.path.basename(image_path_abs)}")
+# Loop through the selected images
+for i, image_path in enumerate(display_images):
+    print(f"Processing: {os.path.basename(image_path)}")
 
     # --- Load Image ---
-    # SAM expects the image in RGB format
-    image = cv2.imread(image_path_abs)
+    # Read the image using OpenCV
+    image = cv2.imread(image_path)
+    # Convert the image from BGR (OpenCV's default) to RGB, as required by SAM and Matplotlib
     image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
     # --- 1. Get YOLO Detections ---
-    yolo_results = yolo_model(image_path_abs, verbose=False, conf=0.2)
+    # Run the fine-tuned YOLO model on the image path.
+    # `verbose=False` reduces console output. `conf=0.2` sets the confidence threshold.
+    yolo_results = yolo_model(image_path, verbose=False, conf=0.2)
     
-    # Plot original image and YOLO box on the first subplot
-    ax1 = axs[i, 0]
+    # --- Setup Visualization ---
+    # Select the first subplot for showing the original image with YOLO boxes
+    ax1 = axs[i, 0] if num_display_images > 1 else axs[0]
     ax1.imshow(image_rgb)
-    ax1.set_title(f"YOLO Detection: {os.path.basename(image_path_abs)}")
+    ax1.set_title(f"YOLO Detection: {os.path.basename(image_path)}")
     ax1.axis('off')
 
-    # Plot final mask on the second subplot
-    ax2 = axs[i, 1]
+    # Select the second subplot for showing the final SAM segmentation masks
+    ax2 = axs[i, 1] if num_display_images > 1 else axs[1]
     ax2.imshow(image_rgb)
     ax2.set_title(f"SAM Segmentation")
     ax2.axis('off')
     
+    # Proceed only if YOLO detected at least one object
     if len(yolo_results[0].boxes) > 0:
-        # Set the image for the predictor once
+        # --- Prepare SAM ---
+        # Set the image for the SAM predictor. This pre-processes the image to create an embedding.
+        # This only needs to be done once per image.
         predictor.set_image(image_rgb)
 
-        # Get top 3 boxes by confidence
+        # Get the detected boxes object from the YOLO results
         boxes = yolo_results[0].boxes
+        # Get the confidence scores for all detected boxes
         confidences = boxes.conf
+        # Sort the detections by confidence in descending order
         indices = torch.argsort(confidences, descending=True)
+        # Select the indices of the top 3 most confident detections
         top_indices = indices[:3]
         
         print(f"  Found {len(boxes)} objects. Segmenting top {len(top_indices)}.")
 
-        for i in top_indices:
-            box = boxes[i] # Get the box object for the current index
+        # Loop through the top 3 detections
+        for box_index in top_indices:
+            box = boxes[box_index] # Get the box object for the current index
+            # Extract bounding box coordinates (xyxy format)
             box_coords = box.xyxy[0].cpu().numpy()
+            # Extract class ID, confidence score, and class name
             class_id = int(box.cls[0].cpu().numpy())
             confidence = float(box.conf[0].cpu().numpy())
             class_name = yolo_model.names[class_id]
             label = f"{class_name} {confidence:.2f}"
             
-            # Draw the YOLO box on both plots for comparison
+            # Draw the YOLO bounding box on both plots for comparison
             show_box(box_coords, ax1)
             show_box(box_coords, ax2)
 
-            # Add label to the boxes
+            # Add the class label above the box on both plots
             x0, y0 = box_coords[0], box_coords[1]
             ax1.text(x0, y0 - 10, label, color='white', fontsize=8, backgroundcolor='green')
             ax2.text(x0, y0 - 10, label, color='white', fontsize=8, backgroundcolor='green')
 
             # --- 2. Use Box as Prompt for SAM ---
-            # The input box needs to be a numpy array
-            input_box = box_coords.astype(int)
+            # The input box needs to be a numpy array of shape (1, 4)
+            input_box = box_coords.astype(int)[None, :]
 
-            # Predict the mask
+            # Predict the mask for the object within the bounding box
             masks, scores, logits = predictor.predict(
                 point_coords=None,
                 point_labels=None,
-                box=input_box[None, :],
-                multimask_output=False,
+                box=input_box,
+                multimask_output=False, # We want only the single best mask
             )
 
             # --- 3. Visualize the Mask ---
-            # masks is a (1, H, W) array, so we take the first one
+            # `masks` is a (1, H, W) array, so we take the first and only mask
+            # Use a random color for each distinct object in the image
             show_mask(masks[0], ax2, random_color=True)
     else:
-        print(f"  No objects detected by YOLO in {os.path.basename(image_path_abs)}")
-        ax1.set_title(f"YOLO: No Detections in {os.path.basename(image_path_abs)}")
+        # If YOLO found no objects, print a message
+        print(f"  No objects detected by YOLO in {os.path.basename(image_path)}")
+        ax1.set_title(f"YOLO: No Detections in {os.path.basename(image_path)}")
 
 plt.tight_layout()
 plt.show()
-
 ```
 
 <!-- #region -->

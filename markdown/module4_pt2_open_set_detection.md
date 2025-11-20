@@ -98,10 +98,13 @@ The model outputs logits and bounding boxes in a raw format. We use the `process
 
 ```python
 # Get predictions
+# The model outputs normalized box coordinates. `target_sizes` is used to scale these back to the original image dimensions.
 target_sizes = torch.Tensor([image.size[::-1]])
+# `post_process_object_detection` converts the raw model outputs (logits and boxes) into final predictions.
+# It filters detections based on the confidence `threshold` and rescales the boxes.
 results = processor.post_process_object_detection(outputs=outputs, target_sizes=target_sizes, threshold=0.2)
 
-i = 0  # Retrieve predictions for the first image
+i = 0  # Retrieve predictions for the first (and only) image in the batch
 text = texts[i]
 boxes, scores, labels = results[i]["boxes"], results[i]["scores"], results[i]["labels"]
 
@@ -112,15 +115,17 @@ draw = ImageDraw.Draw(image_with_boxes)
 # Define a list of colors to use for different labels
 colors = ["red", "green", "blue", "yellow", "purple", "orange"]
 
+# Iterate over each detected object
 for box, score, label in zip(boxes, scores, labels):
     box = [round(i, 2) for i in box.tolist()]
-    # Assign a color based on the label
+    # Assign a color based on the label index
     color = colors[label.item() % len(colors)]
     print(
         f"Detected {text[label]} with confidence {round(score.item(), 3)} at location {box}"
     )
+    # Draw the bounding box rectangle
     draw.rectangle(box, outline=color, width=3)
-    # Draw the label and confidence score
+    # Draw the label and confidence score above the box
     draw.text((box[0], box[1]), f"{text[label]} {round(score.item(), 3)}", fill=color)
 
 image_with_boxes
@@ -139,20 +144,35 @@ This code block dives into the model's internal workings.
 5.  **PCA Visualization**: To visualize the rich information in the `source_class_embeddings`, we use Principal Component Analysis (PCA) to reduce their dimensionality from 768 to 3. This allows us to view the embeddings as an RGB image, where different colors represent different semantic features detected in the patches.
 
 ```python
+# Get the feature map from the image encoder (Vision Transformer backbone)
+# Shape: (batch_size, height, width, hidden_size) e.g., (1, 48, 48, 768)
 feature_map = model.image_embedder(inputs.pixel_values)[0]
 batch_size, height, width, hidden_size = feature_map.shape
+# Reshape the feature map into a sequence of patch features
+# Shape: (batch_size, num_patches, hidden_size) e.g., (1, 2304, 768)
 image_features = feature_map.reshape(batch_size, height * width, hidden_size)
+# Get class-agnostic embeddings for each patch
+# Shape: (batch_size, num_patches, hidden_size)
 source_class_embeddings = model.class_predictor(image_features)[1]
+# Get the "objectness" score for each patch (how likely it contains any object)
+# Shape: (batch_size, num_patches)
 objectnesses = model.objectness_predictor(image_features).sigmoid()
+# Predict a bounding box for each patch
+# Shape: (batch_size, num_patches, 4)
 boxes = model.box_predictor(image_features, feature_map=feature_map)
 
 source_class_embeddings.shape
 from sklearn.decomposition import PCA
+# Use PCA to reduce the 768-dimensional embeddings to 3 dimensions for visualization
 pca = PCA(n_components=3)
+# The number of patches along one dimension (e.g., 768/16=48)
 num_patches = model.config.vision_config.image_size // model.config.vision_config.patch_size
 H, W = num_patches, num_patches
+# Fit PCA and transform the embeddings
 pca_result = pca.fit_transform(source_class_embeddings[0].detach().numpy())
+# Reshape the 3D PCA result into an image-like format (H, W, 3)
 pca_image = pca_result.reshape(H, W, 3)
+# Normalize each of the 3 channels (R, G, B) to be in the [0, 1] range for correct display
 for c in range(3):
     channel = pca_image[:, :, c]
     min_val, max_val = channel.min(), channel.max()
@@ -191,6 +211,7 @@ def get_preprocessed_image(pixel_values):
 Here, we identify the top 3 patches with the highest objectness scores. We then take the raw bounding box predictions from the `box_predictor` for these patches and draw them on the "un-normalized" image. This gives us a glimpse into the model's raw output before any post-processing like non-maximum suppression. The boxes are predicted as `(center_x, center_y, width, height)` in a normalized format, so we need to scale them to the image size.
 
 ```python
+# Get the indices of the top 3 patches with the highest objectness scores
 top_scores = np.argsort(objectnesses.detach().numpy()[0])[-3:]
 # Plot the original image, and the boxes of the top 3 objects.
 plt.figure(figsize=(10, 10))
@@ -210,22 +231,23 @@ for patch_idx in top_scores:
     # Get the raw box coordinates for this patch
     raw_box = boxes[0, patch_idx].detach().numpy()
 
-    # Assuming raw_box is [x_min_norm, y_min_norm, x_max_norm, y_max_norm] relative to feature map (0-1)
-    # Scale to original image dimensions
+    # The raw box is [center_x, center_y, width, height] in a normalized format (0-1).
+    # We need to scale these coordinates to the original image dimensions.
     cx, cy, w, h = raw_box
     cx = cx * img_width
     cy = cy * img_height
     w = w * img_width
     h = h * img_height
 
+    # Convert from [cx, cy, w, h] to [x_min, y_min, x_max, y_max] for drawing
     box_coords_pixel = [cx-w/2, cy-h/2, cx+w/2, cy+h/2]
 
-    # Get the objectness score for this patch
+    # Get the objectness score for this patch for display
     objectness_score = objectnesses.detach().numpy()[0, patch_idx]
 
-    # Draw the rectangle
+    # Draw the rectangle on the image
     draw.rectangle(box_coords_pixel, outline="lime", width=3)
-    # Draw the objectness score
+    # Draw the objectness score near the box
     draw.text((box_coords_pixel[0], box_coords_pixel[1]), f"Confidence: {objectness_score:.3f}", fill="lime")
 
 plt.imshow(image_with_raw_boxes)
@@ -245,47 +267,61 @@ target_images = [next(iterator)["image"] for i in range(5)]
 Now, we'll take the class embedding of the object we detected with the highest confidence in the previous steps (which happened to be a cheetah-like figure in the rock). This embedding will serve as our "query". We then loop through the new `target_images`. For each target image, we compute its class embeddings and compare them with our query embedding. The `class_predictor` can take a query embedding to condition its output. We then find the patch in the target image whose embedding is most similar to our query embedding and draw its bounding box. This allows us to find "more objects like this one".
 
 ```python
+# Import the sigmoid function to convert logits to probabilities
 from scipy.special import expit as sigmoid
+# Use the class embedding of the highest-scoring object from the previous step as our query
 query_embedding = source_class_embeddings[0][top_scores[-1]]
+# Loop through the new set of target images to find objects similar to our query
 for target_image in target_images:
+    # Preprocess the target image
     target_pixel_values = processor(images=target_image, return_tensors="pt").pixel_values
+    # Un-normalize the image for visualization later
     unnormalized_target_image = get_preprocessed_image(target_pixel_values)
     
+    # Get the feature map for the target image
     with torch.no_grad():
       feature_map = model.image_embedder(target_pixel_values)[0]
     
-    # Get boxes and class embeddings (the latter conditioned on query embedding)
+    # Reshape the feature map into a sequence of patch features
     b, h, w, d = feature_map.shape
+    target_image_features = feature_map.reshape(b, h * w, d)
+
+    # Predict bounding boxes for all patches in the target image
     target_boxes = model.box_predictor(
-        feature_map.reshape(b, h * w, d), feature_map=feature_map
+        target_image_features, feature_map=feature_map
     )
     
+    # Get class predictions, but this time conditioned on our `query_embedding`.
+    # The model will output similarity scores between each patch in the target image and the query.
     target_class_predictions = model.class_predictor(
-        feature_map.reshape(b, h * w, d),
-        torch.tensor(query_embedding[None, None, ...]),  # [batch, queries, d]
+        target_image_features,
+        torch.tensor(query_embedding[None, None, ...]),  # Shape must be [batch, num_queries, hidden_dim]
     )[0]
     
-    # Remove batch dimension and convert to numpy:
+    # Remove batch dimension and convert tensors to numpy arrays
     target_boxes = np.array(target_boxes[0].detach())
     target_logits = np.array(target_class_predictions[0].detach())
     
-    # Take the highest scoring logit
+    # Find the patch in the target image with the highest similarity score to our query
     top_ind = np.argmax(target_logits[:, 0], axis=0)
+    # Convert the top logit to a confidence score using the sigmoid function
     score = sigmoid(target_logits[top_ind, 0])
     
-    
+    # --- Visualization ---
     fig, ax = plt.subplots(1, 1, figsize=(8, 8))
     ax.imshow(unnormalized_target_image, extent=(0, 1, 1, 0))
     ax.set_axis_off()
     
-    # Get the corresponding bounding box
+    # Get the bounding box corresponding to the best-matching patch
     cx, cy, w, h = target_boxes[top_ind]
+    # Draw the bounding box on the image
     ax.plot(
         [cx - w / 2, cx + w / 2, cx + w / 2, cx - w / 2, cx - w / 2],
         [cy - h / 2, cy - h / 2, cy + h / 2, cy + h / 2, cy - h / 2],
         color='lime',
     )
     
+    # Display the similarity score
     ax.text(
         cx - w / 2 + 0.015,
         cy + h / 2 - 0.015,
@@ -293,11 +329,6 @@ for target_image in target_images:
         ha='left',
         va='bottom',
         color='lime',
-        # bbox={
-        #     #'facecolor': 'white',
-        #     'edgecolor': 'lime',
-        #     'boxstyle': 'square,pad=.3',
-        # },
     )
     
     ax.set_xlim(0, 1)
@@ -326,6 +357,7 @@ import pandas as pd
 import os
 import shutil
 
+# Move the model to the GPU if available, for faster processing
 device = torch.device("cuda")
 model.to(device)
 
@@ -334,16 +366,16 @@ base_data_path = '../data/IDLE-OO-Camera-Traps/'
 base_data_path_yolo = '../data/IDLE-OO-Camera-Traps_yolo'
 ena24_csv_path = os.path.join(base_data_path, 'ENA24-balanced.csv')
 
-# Load the ENA24-balanced.csv file
+# Load the ENA24-balanced.csv file which contains image paths and true labels
 ena24_df = pd.read_csv(ena24_csv_path)
 print(f"Successfully loaded {ena24_csv_path}")
 print(f"Total images in ENA24 dataset: {len(ena24_df)}")
 
-# Create class mapping from the 'common_name' column
+# Create a mapping from class name string to an integer ID
 class_names = sorted(ena24_df['common_name'].unique())
 class_map = {name: i for i, name in enumerate(class_names)}
 
-# Define the output directory for labels and save the class names
+# Define the output directory for the YOLO dataset and save the class names to 'classes.txt'
 labels_base_dir = os.path.join(base_data_path_yolo)
 os.makedirs(labels_base_dir, exist_ok=True)
 with open(os.path.join(labels_base_dir, 'classes.txt'), 'w') as f:
@@ -356,13 +388,14 @@ print(f"Saved {len(class_names)} class names to {os.path.join(labels_base_dir, '
 NUM_IMAGES_LABEL=1000
 sample_images = ena24_df.sample(NUM_IMAGES_LABEL, random_state=42) # Use a random state for reproducibility
 
-# Initialize accuracy tracker
+# Initialize a dictionary to track detection recall for each class
 accuracy_tracker = {name: {'detected': 0, 'missed': 0, 'total': 0} for name in sorted(sample_images['common_name'].unique())}
 
-# Use a general prompt for object detection
+# Use a general prompt for object detection. OWL2 will try to find objects matching any of these descriptions.
 texts = [["a photo of an animal", "a photo of a bird", "a photo of a dog"]]
 
 index_img = 0
+# Loop through the sampled images and generate labels, with a progress bar
 for index, row in tqdm.tqdm(sample_images.iterrows()):
     image_relative_path = row['filepath']
     full_image_path = os.path.join(base_data_path, 'data/test/', image_relative_path)
@@ -370,19 +403,19 @@ for index, row in tqdm.tqdm(sample_images.iterrows()):
     
     if os.path.exists(full_image_path):
         try:
-            # print(f"Processing image: {full_image_path}")
             image = Image.open(full_image_path).convert("RGB")
             
+            # Increment the total count for this class
             accuracy_tracker[common_name]['total'] += 1
             
-            # Prepare inputs for OWL2 model
+            # Prepare inputs for the OWL2 model
             inputs = processor(text=texts, images=image, return_tensors="pt").to(device)
             
             # Get model outputs
             with torch.no_grad():
                 outputs = model(**inputs)
                 
-            # Post-process the outputs
+            # Post-process the outputs to get filtered detections
             target_sizes = torch.Tensor([image.size[::-1]])
             results = processor.post_process_object_detection(outputs=outputs, target_sizes=target_sizes, threshold=0.2)
 
@@ -393,60 +426,58 @@ for index, row in tqdm.tqdm(sample_images.iterrows()):
             if len(scores) > 0:
                 accuracy_tracker[common_name]['detected'] += 1
                 
-                # Find the detection with the highest score
+                # Find the detection with the highest confidence score
                 best_score_index = scores.argmax()
                 best_box = boxes[best_score_index]
                 
-                # Get the ground truth class ID from the CSV
+                # Get the ground truth class ID for this image from our class map
                 class_id = class_map[common_name]
 
-                # Convert bounding box to YOLO format (normalized)
+                # Convert the bounding box to YOLO format (normalized coordinates)
                 img_width, img_height = image.size
                 x_min, y_min, x_max, y_max = best_box.tolist()
                 
+                # Calculate center, width, and height
                 x_center = (x_min + x_max) / 2
                 y_center = (y_min + y_max) / 2
                 box_width = x_max - x_min
                 box_height = y_max - y_min
 
+                # Normalize the coordinates by the image dimensions
                 norm_x_center = x_center / img_width
                 norm_y_center = y_center / img_height
                 norm_width = box_width / img_width
                 norm_height = box_height / img_height
 
-                # Define the path for the YOLO label file
+                # Define the path for the YOLO label file, mirroring the image path structure
                 label_relative_path = os.path.splitext(image_relative_path)[0] + '.txt'
                 label_full_path = os.path.join(labels_base_dir, label_relative_path)
                 os.makedirs(os.path.dirname(label_full_path), exist_ok=True)
 
-                # Write the YOLO label file
+                # Write the YOLO label file in the format: <class_id> <x_center> <y_center> <width> <height>
                 with open(label_full_path, 'w') as f:
                     f.write(f"{class_id} {norm_x_center:.6f} {norm_y_center:.6f} {norm_width:.6f} {norm_height:.6f}\n")
                 
-                # print(f"Saved YOLO label for '{common_name}' to {label_full_path}")
-
-                # Define paths for YOLO training data
+                # --- Organize files for YOLO training ---
                 yolo_train_images_dir = os.path.join(labels_base_dir, 'images')
                 yolo_train_labels_dir = os.path.join(labels_base_dir, 'labels')
                 os.makedirs(yolo_train_images_dir, exist_ok=True)
                 os.makedirs(yolo_train_labels_dir, exist_ok=True)
 
-                # Copy image to YOLO training images directory
+                # Copy the image to the YOLO 'images' directory
                 image_name = os.path.basename(full_image_path)
                 destination_image_path = os.path.join(yolo_train_images_dir, image_name)
                 shutil.copyfile(full_image_path, destination_image_path)
-                # print(f"Copied image to {destination_image_path}")
 
-                # Copy label file to YOLO training labels directory
+                # Copy the new label file to the YOLO 'labels' directory
                 label_name = os.path.basename(label_full_path)
                 destination_label_path = os.path.join(yolo_train_labels_dir, label_name)
                 shutil.copyfile(label_full_path, destination_label_path)
-                # print(f"Copied label to {destination_label_path}")
             else:
+                # If no object was detected, increment the 'missed' counter
                 accuracy_tracker[common_name]['missed'] += 1
-                # print(f"No animal detected in image for '{common_name}'")
 
-            # Visualize the detections on the image for verification
+            # Visualize the detections on the first few images for a quick visual check
             if index_img < 10:
                 image_with_boxes = image.copy()
                 draw = ImageDraw.Draw(image_with_boxes)
@@ -454,9 +485,6 @@ for index, row in tqdm.tqdm(sample_images.iterrows()):
                 for box, score, label in zip(boxes, scores, labels):
                     box = [round(i, 2) for i in box.tolist()]
                     detected_text = texts[0][label.item()]
-                    # print(
-                    #     f"Detected '{detected_text}' with confidence {round(score.item(), 3)} at location {box}"
-                    # )
                     draw.rectangle(box, outline="red", width=3)
                     draw.text((box[0], box[1]), f"{detected_text} {round(score.item(), 3)}", fill="red")
 

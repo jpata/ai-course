@@ -87,48 +87,52 @@ We will select one of the 10 sample images that were labeled.
 <!-- #endregion -->
 
 ```python
-# Path to the directory where training runs are saved
+# Path to the directory where all YOLO training runs are saved
 train_dir = 'runs/detect'
 
-# Find the latest training directory
+# Find the most recent training directory by sorting them by modification time
 latest_train_run = max(os.listdir(train_dir), key=lambda d: os.path.getmtime(os.path.join(train_dir, d)))
+# The best model weights are saved as 'best.pt' inside the 'weights' subdirectory
 best_model_path = os.path.join(train_dir, latest_train_run, 'weights/best.pt')
 
 print(f"Loading fine-tuned model from: {best_model_path}")
 
-# Load the fine-tuned model
+# Load the fine-tuned model from the best weights file
 model_finetuned = YOLO(best_model_path)
 
-# Get the paths of up to 9 validation images
+# Get the paths of up to 9 validation images to display
 if len(val_images) < 9:
     print(f"Warning: Found only {len(val_images)} validation images. Displaying all of them.")
     display_images = val_images
 else:
+    # Select the first 9 images from the validation set
     display_images = val_images[:9]
 
 if not display_images:
     raise Exception("No validation images found to display results.")
 
-# Create a 3x3 grid for displaying the images
+# Create a 3x3 grid for displaying the images and their predictions
 fig, axs = plt.subplots(3, 3, figsize=(15, 15))
-axs = axs.flatten()
+axs = axs.flatten() # Flatten the 2D array of axes into a 1D array for easy iteration
 
-# Run inference and display results
-for i, image_path_relative in enumerate(display_images):
-    image_path = os.path.join(base_path, image_path_relative)
+# Run inference on the selected images and display the results
+for i, image_path in enumerate(display_images):
+    # Note: YOLO expects the original image path, not the pre-processed one
     print(f"Running inference on: {image_path}")
+    # Run the fine-tuned model on the image
     results = model_finetuned(image_path)
     
-    # Plot results and convert to an image
+    # The `plot()` method returns a numpy array of the image with bounding boxes and labels drawn on it
     im_array = results[0].plot()
+    # Convert the array from BGR (used by OpenCV) to RGB for correct display with PIL and Matplotlib
     im = Image.fromarray(im_array[..., ::-1])
     
-    # Display the image in the subplot
+    # Display the image in the current subplot
     axs[i].imshow(im)
-    axs[i].axis('off') # Hide axes
+    axs[i].axis('off') # Hide the x and y axes
     axs[i].set_title(os.path.basename(image_path))
 
-# Hide any unused subplots
+# Hide any unused subplots if there are fewer than 9 images
 for j in range(i + 1, len(axs)):
     axs[j].axis('off')
 
@@ -157,20 +161,23 @@ print(f"Loading fine-tuned model from: {best_model_path}")
 # Load the fine-tuned model
 model_finetuned = YOLO(best_model_path)
 
-# Run validation on the full validation set
+# Run the `val` method to evaluate the model on the validation set.
+# This uses the 'val' dataset defined in the 'ena24_yolo_dataset.yaml' file.
+# The method calculates metrics like mAP, precision, and recall, and saves results to a new run directory.
 metrics = model_finetuned.val()
 
-# The confusion matrix is saved by the val command. Let's display it.
+# The validation process automatically generates and saves a confusion matrix image.
+# We can find its path in the `save_dir` attribute of the returned metrics object.
 confusion_matrix_path = os.path.join(metrics.save_dir, 'confusion_matrix.png')
 
-# Check if the confusion matrix image exists
+# Check if the confusion matrix image was created successfully
 if os.path.exists(confusion_matrix_path):
     print(f"Displaying confusion matrix from: {confusion_matrix_path}")
-    # Display the confusion matrix
+    # Open and display the confusion matrix image
     img = Image.open(confusion_matrix_path)
     plt.figure(figsize=(12, 12))
     plt.imshow(img)
-    plt.axis('off')
+    plt.axis('off') # Hide the axes for a cleaner look
     plt.title('Confusion Matrix')
     plt.show()
 else:
