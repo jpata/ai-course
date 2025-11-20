@@ -10,16 +10,22 @@ Before you begin, ensure you have Python installed. All the necessary Python pac
 
 1.  Clone the repository:
     ```bash
-    git clone <repository-url>
-    cd <repository-name>
+    git clone https://github.com/jpata/ai-course
+    cd ai-course
     ```
 
-2.  Install the dependencies:
+2.  Create and activate a Python virtual environment:
+    ```bash
+    python3 -m venv venv
+    source venv/bin/activate
+    ```
+
+3.  Install the dependencies:
     ```bash
     pip install -r requirements.txt
     ```
 
-3.  Download the data by running the script in the `data` directory:
+4.  Download the data by running the script in the `data` directory:
     ```bash
     bash data/get_data.sh
     ```

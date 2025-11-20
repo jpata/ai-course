@@ -9,7 +9,7 @@ EXECUTED_NOTEBOOK_FILES = $(patsubst notebooks/%.ipynb,notebooks_executed/%.ipyn
 # Create corresponding html files from executed notebooks
 HTML_FILES = $(patsubst notebooks_executed/%.ipynb,notebooks_executed_html/%.html,$(EXECUTED_NOTEBOOK_FILES))
 
-.PHONY: all notebook execute html clean
+.PHONY: all notebook execute html clean compress_notebooks
 
 all: notebook execute html
 
@@ -23,9 +23,9 @@ notebooks/%.ipynb: markdown/%.md
 # Execute notebooks
 execute: $(EXECUTED_NOTEBOOK_FILES)
 
-notebooks_executed/module4_yolo_finetuning.ipynb: notebooks_executed/module4_owl2_object_detection.ipynb
-notebooks_executed/module4_yolo_evaluation.ipynb: notebooks_executed/module4_yolo_finetuning.ipynb
-notebooks_executed/module4_yolo_sam.ipynb: notebooks_executed/module4_yolo_finetuning.ipynb
+notebooks_executed/module4_pt3_finetuning.ipynb: notebooks_executed/module4_pt2_open_set_detection.ipynb
+notebooks_executed/module4_pt4_evaluation.ipynb: notebooks_executed/module4_pt3_finetuning.ipynb
+notebooks_executed/module4_pt5_sam.ipynb: notebooks_executed/module4_pt3_finetuning.ipynb
 
 notebooks_executed/%.ipynb: notebooks/%.ipynb
 	mkdir -p notebooks_executed
@@ -37,6 +37,10 @@ html: $(HTML_FILES)
 notebooks_executed_html/%.html: notebooks_executed/%.ipynb
 	mkdir -p $(dir $@)
 	jupyter nbconvert --to html $< --output-dir $(dir $@) --output $(notdir $@)
+
+# Compress executed notebooks
+compress_notebooks:
+	(cd notebooks_executed && find . -name '*.ipynb' -print0 | tar --null -czf ../notebooks_executed.tar.gz -T -)
 
 clean:
 	rm -Rf yolov8n.pt
