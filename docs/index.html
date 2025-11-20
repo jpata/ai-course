@@ -148,6 +148,14 @@
             min-height: 2.5em; /* Ensures titles align even if one wraps */
         }
 
+        .module-card.undeveloped h3 {
+            color: #b0b0b0; /* Lighter color for undeveloped module titles */
+        }
+
+        .module-card.undeveloped p {
+            color: #999999; /* Lighter color for undeveloped module descriptions */
+        }
+
         /* --- Call to Action (CTA) Section --- */
         .cta-section {
             background: linear-gradient(135deg, var(--color-secondary) 0%, var(--color-primary-dark) 100%);
@@ -231,21 +239,21 @@
                 <div class="modules-grid">
 
                     <!-- Module 1 -->
-                    <div class="module-card">
+                    <div class="module-card undeveloped">
                         <span class="module-number">Module 1</span>
                         <h3>The Open Source Research Toolkit</h3>
                         <p>Learn to find, evaluate, and legally use open-source models for academic research from hubs like Hugging Face and GitHub.</p>
                     </div>
 
                     <!-- Module 2 -->
-                    <div class="module-card">
+                    <div class="module-card undeveloped">
                         <span class="module-number">Module 2</span>
                         <h3>The Researcher's Methodology: Validation & Ethics</h3>
                         <p>Treat AI as a scientific instrument. Learn to calibrate, validate, and manage bias to ensure reproducible, ethical results.</p>
                     </div>
 
                     <!-- Module 3 -->
-                    <div class="module-card">
+                    <div class="module-card undeveloped">
                         <span class="module-number">Module 3</span>
                         <h3>Text Mining (Humanities & Social Sciences)</h3>
                         <p>Analyze massive text archives, transcripts, or surveys for themes and entities using models like BERTopic and spaCy.</p>
@@ -260,21 +268,21 @@
                     </a>
 
                     <!-- Module 5 -->
-                    <div class="module-card">
+                    <div class="module-card undeveloped">
                         <span class="module-number">Module 5</span>
                         <h3>Time-Series Analysis</h3>
                         <p>Find patterns in non-visual data like sensor readings, climate records, and genetic sequences with models like ESMFold and Prophet.</p>
                     </div>
                     
                     <!-- Module 6 -->
-                    <div class="module-card">
+                    <div class="module-card undeveloped">
                         <span class="module-number">Module 6</span>
                         <h3>Multimodal AI</h3>
                         <p>Solve complex problems by reasoning across data types, such as asking questions about charts or diagrams with models like LLaVA.</p>
                     </div>
 
                     <!-- Module 7 (Capstone) -->
-                    <div class="module-card">
+                    <div class="module-card undeveloped">
                         <span class="module-number">Module 7</span>
                         <h3>Capstone: Designing a Research Pipeline</h3>
                         <p>Synthesize all patterns to design and propose a unique, modular AI-based methodology for your own research question.</p>
