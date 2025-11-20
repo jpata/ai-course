@@ -4,3 +4,4 @@ notebooks_executed/**
 notebooks_executed_html/**
 *.pt
 *.pth
+notebooks_executed.tar.gz
