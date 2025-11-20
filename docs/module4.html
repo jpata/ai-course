@@ -362,23 +362,23 @@
                         <span class="module-number">Part 1</span>
                         <h3>Getting Started: Object Detection with Pre-trained Models</h3>
                         <p>
-                            This part introduces the core task of object detection. We demonstrate how to use powerful, pre-trained models like <span class="model-name">YOLOv8</span> and <span class="model-name">DETR</span> to immediately find objects in images. This is the fastest way to begin a computer vision project. We explore not just how to use these models, but also how they work architecturally. Crucially, we investigate their performance on a specialized research dataset (e.g. camera trap images of animals) to understand the limitations of general-purpose models, such as the 'class mismatch' problem, where a model trained on common objects (like COCO) is applied to a new domain.
+                            This part introduces the core task of object detection. We demonstrate how to use powerful, pre-trained object detection models to immediately find objects in images. This is the fastest way to begin a computer vision project. We explore not just how to use these models, but also how they work architecturally. Crucially, we investigate their performance on a specialized research dataset (e.g. camera trap images of animals) to understand the limitations of general-purpose models, such as the 'class mismatch' problem, where a model trained on common objects (like COCO) is applied to a new domain.
                         </p>
                         <h4>Key Research Applications:</h4>
                         <ul>
                             <li><strong>Rapid Data Exploration:</strong> Quickly scan a new image dataset to see what a general-purpose model can identify out-of-the-box.</li>
-                            <li><strong>Understanding Model Architectures:</strong> Compare and contrast different model philosophies, such as the single-stage efficiency of YOLO versus the transformer-based approach of DETR.</li>
+                            <li><strong>Understanding Model Architectures:</strong> Compare and contrast different model philosophies, such as the single-stage efficiency of certain models versus transformer-based approaches.</li>
                             <li><strong>Evaluating Out-of-Domain Performance:</strong> Quantify the "class mismatch" problem by analyzing how a model trained on one dataset (e.g., COCO) performs on a different, specialized dataset (e.g., camera trap images), which is a critical first step before deciding to fine-tune.</li>
                         </ul>
                         <h4>Concrete Steps from the Notebook:</h4>
                         <ul>
                             <li>Load pre-trained <span class="model-name">YOLOv8</span> and <span class="model-name">DETR</span> models.</li>
                             <li>Run inference on sample images to get bounding boxes and class labels.</li>
-                            <li>Visualize internal model workings, such as feature maps for YOLO and attention maps for DETR, to gain intuition.</li>
+                            <li>Visualize internal model workings, such as feature maps (for single-stage detectors) and attention maps (for transformer-based models), to gain intuition.</li>
                             <li>Systematically evaluate model performance on a new dataset by comparing ground truth labels to model predictions.</li>
                             <li>Analyze the "class mismatch" problem using tools like cross-tabulation (confusion matrix) and ROC curves.</li>
                         </ul>
-                        <a href="https://github.com/jpata/ai-course/blob/main/notebooks/module4_object_detection.ipynb" class="cta-button" style="padding: 10px 20px; font-size: 0.9rem; margin-top: 15px;">View Notebook</a>
+                        <a href="https://github.com/jpata/ai-course/blob/main/notebooks/module4_pt1_object_detection.ipynb" class="cta-button" style="padding: 10px 20px; font-size: 0.9rem; margin-top: 15px;">View Notebook</a>
                     </div>
 
                     <!-- Part 2: Zero-Shot Detection & Auto-Labeling -->
@@ -400,15 +400,15 @@
                             <li>Use <span class="model-name">OWL2</span> with a general prompt like "a photo of an animal" to detect animals in the images.</li>
                             <li>Convert the detected bounding boxes into the YOLO label format.</li>
                         </ul>
-                        <a href="https://github.com/jpata/ai-course/blob/main/notebooks/module4_owl2_object_detection.ipynb" class="cta-button" style="padding: 10px 20px; font-size: 0.9rem; margin-top: 15px;">View Notebook</a>
+                        <a href="https://github.com/jpata/ai-course/blob/main/notebooks/module4_pt2_open_set_detection.ipynb" class="cta-button" style="padding: 10px 20px; font-size: 0.9rem; margin-top: 15px;">View Notebook</a>
                     </div>
 
                     <!-- Part 2: Fine-Tuning a Specialized Detector -->
                     <div class="module-card">
                         <span class="module-number">Part 3</span>
-                        <h3>Fine-Tuning a YOLOv8 Model</h3>
+                        <h3>Fine-Tuning a Specialized Object Detector</h3>
                         <p>
-                            While powerful, OWL2 can be slow. For large-scale analysis, we need a faster model. We use the dataset we automatically labeled in Part 2 to fine-tune a <span class="model-name">YOLOv8</span> model. Fine-tuning adapts a pre-trained model to a new, specific task.
+                            While powerful, OWL2 can be slow. For large-scale analysis, we need a faster model. We use the dataset we automatically labeled in Part 2 to fine-tune a specialized object detection model. Fine-tuning adapts a pre-trained model to a new, specific task.
                         </p>
                         <h4>Key Research Applications:</h4>
                         <ul>
@@ -417,12 +417,12 @@
                         </ul>
                         <h4>Concrete Steps from the Notebook:</h4>
                         <ul>
-                            <li>Create a `dataset.yaml` file to configure the training process for YOLO.</li>
-                            <li>Load a pre-trained <span class="model-name">YOLOv8n</span> model.</li>
+                            <li>Create a `dataset.yaml` file to configure the training process for the chosen object detector.</li>
+                            <li>Load a pre-trained base model (e.g., <span class="model-name">YOLOv8n</span>).</li>
                             <li>Train the model on the auto-generated labels from OWL2, creating a new model specialized for the ENA24 dataset.</li>
                             <li>Evaluate the model's performance using a confusion matrix and loss curves.</li>
                         </ul>
-                        <a href="https://github.com/jpata/ai-course/blob/main/notebooks/module4_yolo_finetuning.ipynb" class="cta-button" style="padding: 10px 20px; font-size: 0.9rem; margin-top: 15px;">View Notebook</a>
+                        <a href="https://github.com/jpata/ai-course/blob/main/notebooks/module4_pt3_finetuning.ipynb" class="cta-button" style="padding: 10px 20px; font-size: 0.9rem; margin-top: 15px;">View Notebook</a>
                     </div>
 
                     <!-- Part 3: Using the Fine-Tuned Model -->
@@ -443,15 +443,15 @@
                             <li>Run inference on new images to get fast and accurate bounding boxes for the target classes.</li>
                             <li>Visualize the results to confirm the model's effectiveness.</li>
                         </ul>
-                        <a href="https://github.com/jpata/ai-course/blob/main/notebooks/module4_yolo_evaluation.ipynb" class="cta-button" style="padding: 10px 20px; font-size: 0.9rem; margin-top: 15px;">View Evaluation Notebook</a>
+                        <a href="https://github.com/jpata/ai-course/blob/main/notebooks/module4_pt4_evaluation.ipynb" class="cta-button" style="padding: 10px 20px; font-size: 0.9rem; margin-top: 15px;">View Evaluation Notebook</a>
                     </div>
                     
                     <!-- Part 4: Advanced Segmentation with SAM + YOLO -->
                     <div class="module-card">
                         <span class="module-number">Part 5</span>
-                        <h3>Promptable Segmentation with SAM + YOLO</h3>
+                        <h3>Promptable Segmentation with SAM and Object Detectors</h3>
                         <p>
-                            Bounding boxes are good, but what if you need the exact outline of an object? We can combine our fine-tuned YOLO model with the <span class="model-name">Segment Anything Model (SAM)</span>. SAM can take prompts, like bounding boxes, and produce highly detailed segmentation masks.
+                            Bounding boxes are good, but what if you need the exact outline of an object? We can combine our fine-tuned object detection model with the <span class="model-name">Segment Anything Model (SAM)</span>. SAM can take prompts, like bounding boxes, and produce highly detailed segmentation masks.
                         </p>
                         <h4>Key Research Applications:</h4>
                         <ul>
@@ -460,11 +460,11 @@
                         </ul>
                         <h4>Workflow:</h4>
                         <ol>
-                            <li>Run the fine-tuned <span class="model-name">YOLOv8</span> model on an image to get bounding boxes.</li>
+                            <li>Run the fine-tuned object detection model (e.g., <span class="model-name">YOLOv8</span>) on an image to get bounding boxes.</li>
                             <li>Pass the image and the bounding boxes as prompts to <span class="model-name">SAM</span>.</li>
                             <li>SAM returns a precise pixel-level mask for each object within the boxes.</li>
                         </ol>
-                        <a href="#" class="cta-button" style="padding: 10px 20px; font-size: 0.9rem; margin-top: 15px; background-color: #ccc; cursor: not-allowed;">Notebook Coming Soon</a>
+                        <a href="https://github.com/jpata/ai-course/blob/main/notebooks/module4_pt5_sam.ipynb" class="cta-button" style="padding: 10px 20px; font-size: 0.9rem; margin-top: 15px;">View Notebook</a>
                     </div>
 
                 </div>
@@ -473,7 +473,7 @@
                 <div class="task-section">
                     <h2>Module 4: Practical Task</h2>
                     <p>
-                        This module's practical task is to follow the complete workflow demonstrated in the notebooks. You will start by using <span class="model-name">OWL2</span> to automatically label a sample of the ENA24 dataset. Then, you will use those labels to fine-tune a <span class="model-name">YOLOv8</span> model. Finally, you will use your new, specialized model to perform object detection on the remaining images.
+                        This module's practical task is to follow the complete workflow demonstrated in the notebooks. You will start by using <span class="model-name">OWL2</span> to automatically label a sample of the ENA24 dataset. Then, you will use those labels to fine-tune a specialized object detection model (e.g., <span class="model-name">YOLOv8</span>). Finally, you will use your new, specialized model to perform object detection on the remaining images.
                     </p>
                 </div>
 
