@@ -12,6 +12,25 @@ jupyter:
     name: python3
 ---
 
+```python
+#Mount the drive in colab to be able to share outputs across the notebooks
+import sys
+import os
+IN_COLAB = 'google.colab' in sys.modules
+if IN_COLAB:
+    from google.colab import drive
+    drive.mount('/content/drive/')
+
+    %mkdir -p /content/drive/MyDrive/ai-course
+    %cd /content/drive/MyDrive/ai-course
+
+    if not os.path.exists('ai-course'):
+        !git clone https://github.com/jpata/ai-course
+    
+    %cd ai-course
+    !git pull
+```
+
 <!-- #region -->
 # Object Detection: A Comparison of YOLO and DETR
 
@@ -33,6 +52,12 @@ First, let's install the necessary libraries. `ultralytics` provides the YOLO mo
 
 ```python
 !pip install -q ultralytics transformers timm datasets torch torchvision Pillow scikit-learn seaborn pandas matplotlib
+```
+
+We can also download the data from huggingface:
+```
+!mkdir ../data
+!git clone https://huggingface.co/datasets/imageomics/IDLE-OO-Camera-Traps ../data/IDLE-OO-Camera-Traps
 ```
 
 <!-- #region -->

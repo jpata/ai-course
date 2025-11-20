@@ -13,6 +13,25 @@ jupyter:
     name: python3
 ---
 
+```python
+#Mount the drive in colab to be able to share outputs across the notebooks
+import sys
+import os
+IN_COLAB = 'google.colab' in sys.modules
+if IN_COLAB:
+    from google.colab import drive
+    drive.mount('/content/drive/')
+
+    %mkdir -p /content/drive/MyDrive/ai-course
+    %cd /content/drive/MyDrive/ai-course
+
+    if not os.path.exists('ai-course'):
+        !git clone https://github.com/jpata/ai-course
+    
+    %cd ai-course
+    !git pull
+```
+
 <!-- #region -->
 # YOLO Fine-Tuned Model Evaluation
 
