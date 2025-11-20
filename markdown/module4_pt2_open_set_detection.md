@@ -55,6 +55,10 @@ import matplotlib.pyplot as plt
 import requests
 import tqdm
 import numpy as np
+
+# Set the device
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(f"Using device: {device}")
 ```
 
 Next, we load the `imageomics/IDLE-OO-Camera-Traps` dataset. We'll just take one example from the training split.
@@ -357,8 +361,7 @@ import pandas as pd
 import os
 import shutil
 
-# Move the model to the GPU if available, for faster processing
-device = torch.device("cuda")
+
 model.to(device)
 
 # Define the base path to the locally checked out dataset
