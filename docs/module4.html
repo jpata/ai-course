@@ -174,6 +174,33 @@
             color: #555;
         }
 
+        /* --- NEW: Styles for Discussion Questions --- */
+        .question-group {
+            margin-top: 2rem;
+        }
+        .question-group h3 { /* Using h3 for question group titles */
+            font-size: 1.4rem;
+            color: var(--color-primary-dark);
+            border-bottom: 2px solid #e0e0e0;
+            padding-bottom: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+        .question {
+            background-color: #f8f9fa;
+            border-left: 4px solid var(--color-accent);
+            padding: 20px;
+            margin-top: 1rem;
+            border-radius: 0 8px 8px 0;
+        }
+        .question p {
+            margin-bottom: 0;
+            font-size: 1.05rem;
+            color: #333;
+        }
+        .question strong {
+            color: var(--color-primary-light);
+        }
+
         /* --- Modules Section --- */
         .modules-section {
             padding: 60px 0;
@@ -490,6 +517,44 @@
                     <p>
                         This module's practical task is to follow the complete workflow demonstrated in the notebooks. You will start by using <span class="model-name">OWL2</span> to automatically label a sample of the ENA24 dataset. Then, you will use those labels to fine-tune a specialized object detection model (e.g., <span class="model-name">YOLOv8</span>). Finally, you will use your new, specialized model to perform object detection on the remaining images.
                     </p>
+                </div>
+
+                <div class="module-intro">
+                    <h2>Research Questions</h2>
+                    <p>These questions are designed to provoke discussion about how the vision models and techniques from this module can be applied to scientific inquiry and research challenges.</p>
+
+                    <div class="question-group">
+                        <h3>From Observation to Quantification</h3>
+                        <div class="question">
+                            <p><strong>Question 1:</strong> The notebooks show a progression from finding objects (detection) to outlining their exact shape (segmentation). In scientific research, when is simply knowing the <strong>presence and count</strong> of an object sufficient? And when does a research question require precise <strong>morphological data</strong> (e.g., area, volume, shape) that segmentation provides? Discuss with examples from a field like cell biology, astronomy, or materials science.</p>
+                        </div>
+                        <div class="question">
+                            <p><strong>Question 2:</strong> The YOLO+SAM pipeline combines a fast detector with a powerful segmenter. Imagine you are a marine biologist with terabytes of underwater video. You want to measure the impact of a chemical spill on coral reef health. How could this pipeline be used to quantify changes in coral morphology or algae coverage over time? What are the benefits of this combined approach over a single, monolithic model?</p>
+                        </div>
+                    </div>
+
+                    <div class="question-group">
+                        <h3>Hypothesis Generation and Data Exploration</h3>
+                        <div class="question">
+                            <p><strong>Question 3:</strong> Zero-shot models like OWL2 can find objects based on text descriptions in un-annotated image collections. How does this capability change the nature of exploratory data analysis in science? If you were given 50,000 digitized manuscript pages, how could you use a zero-shot model to rapidly search for "illuminated letters," "heraldic symbols," or "marginalia drawings" to form new research questions?</p>
+                        </div>
+                        <div class="question">
+                            <p><strong>Question 4:</strong> Image-guided search, where you provide an example image patch to find similar instances, is also a feature of OWL2. When would this be more valuable in a research context than text-based search? Consider a scenario where a scientist discovers a previously unknown cellular organelle or a new type of astronomical phenomenon. How would image-guided search be critical in that discovery process?</p>
+                        </div>
+                    </div>
+
+                    <div class="question-group">
+                        <h3>Building and Validating Scientific Tools</h3>
+                        <div class="question">
+                            <p><strong>Question 5:</strong> The notebooks demonstrate a workflow: 1) Use a general model (OWL2) for initial data annotation, then 2) Fine-tune a specialized model (YOLO). How does this "researcher-in-the-loop" process accelerate the creation of new scientific instruments? Discuss the synergy between the human expert (who validates/corrects) and the AI model in this cycle.</p>
+                        </div>
+                        <div class="question">
+                            <p><strong>Question 6:</strong> When publishing research that uses an AI model for data analysis, why is it scientifically insufficient to only report a single accuracy score (e.g., "85% accurate")? Why are tools like confusion matrices, ROC curves, and examples of failure cases essential for the integrity and reproducibility of the research?</p>
+                        </div>
+                        <div class="question">
+                            <p><strong>Question 7:</strong> The models we've seen are primarily for 2D images. Consider a research domain that uses 3D data, such as medical imaging (MRI, CT scans) or computational fluid dynamics. What new challenges and opportunities arise when extending these detection and segmentation concepts from 2D planes to 3D volumes?</p>
+                        </div>
+                    </div>
                 </div>
 
             </div>
